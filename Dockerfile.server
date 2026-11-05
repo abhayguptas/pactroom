@@ -1,0 +1,22 @@
+FROM node:22-alpine
+
+RUN apk add --no-cache git python3 make g++
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@11.6.0 --activate
+
+COPY pnpm-lock.yaml* pnpm-workspace.yaml package.json tsconfig.base.json tsconfig.json ./
+COPY packages/contract-engine ./packages/contract-engine
+COPY workspaces/backend-api ./workspaces/backend-api
+COPY workspaces/frontend-consumer ./workspaces/frontend-consumer
+COPY apps/pactroom-server ./apps/pactroom-server
+
+RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm --filter @pactroom/contract-engine build
+RUN pnpm --filter pactroom-server build
+
+EXPOSE 4000
+
+CMD ["pnpm", "--filter", "pactroom-server", "start"]
+

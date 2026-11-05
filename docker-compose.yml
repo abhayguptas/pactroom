@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  backend-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: pactroom-backend-api
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - BACKEND_API_PORT=3001
+    networks:
+      - pactroom-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pactroom-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: pactroom-engine-server
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PACTROOM_SERVER_PORT=4000
+      - BACKEND_API_URL=http://backend-api:3001
+    depends_on:
+      backend-api:
+        condition: service_healthy
+    networks:
+      - pactroom-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pactroom-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: pactroom-web-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NEXT_PUBLIC_PACTROOM_SERVER_URL=http://localhost:4000
+      - NEXT_PUBLIC_BACKEND_API_URL=http://localhost:3001
+    depends_on:
+      - pactroom-server
+    networks:
+      - pactroom-net
+
+networks:
+  pactroom-net:
+    driver: bridge
+

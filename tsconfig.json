@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true
+  },
+  "include": [],
+  "references": [
+    { "path": "./packages/contract-engine" },
+    { "path": "./apps/pactroom-server" },
+    { "path": "./workspaces/backend-api" },
+    { "path": "./workspaces/frontend-consumer" }
+  ]
+}
+

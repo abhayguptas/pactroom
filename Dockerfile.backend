@@ -1,0 +1,18 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@11.6.0 --activate
+
+COPY pnpm-lock.yaml* pnpm-workspace.yaml package.json tsconfig.base.json tsconfig.json ./
+COPY packages/contract-engine ./packages/contract-engine
+COPY workspaces/backend-api ./workspaces/backend-api
+
+RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm --filter @pactroom/contract-engine build
+RUN pnpm --filter backend-api build
+
+EXPOSE 3001
+
+CMD ["pnpm", "--filter", "backend-api", "start"]
+
