@@ -1,0 +1,53 @@
+<svg width="480" height="100" viewBox="0 0 480 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .mark-a { fill: #18181B; }
+    .mark-b { fill: #3F3F46; }
+    .text-brand { fill: #18181B; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 800; }
+    .text-sub { fill: #71717A; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; font-weight: 500; }
+    .badge-bg { fill: #F4F4F5; stroke: #E4E4E7; }
+    .badge-text { fill: #52525B; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600; }
+    .dot-status { fill: #10B981; }
+
+    @media (prefers-color-scheme: dark) {
+      .mark-a { fill: #FFFFFF; }
+      .mark-b { fill: #A1A1AA; }
+      .text-brand { fill: #FFFFFF; }
+      .text-sub { fill: #A1A1AA; }
+      .badge-bg { fill: #27272A; stroke: #3F3F46; }
+      .badge-text { fill: #D4D4D8; }
+      .dot-status { fill: #34D399; }
+    }
+  </style>
+
+  <!-- Geometric Interlocking PactRoom Emblem -->
+  <g transform="translate(10, 16)">
+    <!-- Machine A (Left Provider Bracket) -->
+    <path
+      class="mark-a"
+      d="M 12 24 C 12 15.16 19.16 8 28 8 L 42 8 C 44.2 8 46 9.8 46 12 L 46 20 C 46 22.2 44.2 24 42 24 L 30 24 C 27.8 24 26 25.8 26 28 L 26 44 C 26 46.2 27.8 48 30 48 L 42 48 C 44.2 48 46 49.8 46 52 L 46 60 C 46 62.2 44.2 64 42 64 L 28 64 C 19.16 64 12 56.84 12 48 Z"
+    />
+    <!-- Machine B (Right Consumer Bracket) -->
+    <path
+      class="mark-b"
+      d="M 60 48 C 60 56.84 52.84 64 44 64 L 34 64 C 31.8 64 30 62.2 30 60 L 30 52 C 30 49.8 31.8 48 34 48 L 42 48 C 44.2 48 46 46.2 46 44 L 46 28 C 46 25.8 44.2 24 42 24 L 34 24 C 31.8 24 30 22.2 30 20 L 30 12 C 30 9.8 31.8 8 34 8 L 44 8 C 52.84 8 60 15.16 60 24 Z"
+    />
+    <!-- Central Consensus Core -->
+    <rect class="mark-a" x="32" y="32" width="8" height="8" rx="2" />
+  </g>
+
+  <!-- Wordmark & Subtitle -->
+  <g transform="translate(100, 0)">
+    <!-- Brand Wordmark -->
+    <text x="0" y="46" font-size="34" letter-spacing="-0.8" class="text-brand">PactRoom</text>
+
+    <!-- Switch Room Protocol Pill -->
+    <g transform="translate(170, 24)">
+      <rect x="0" y="0" width="160" height="24" rx="12" class="badge-bg" stroke-width="1" />
+      <circle cx="12" cy="12" r="3.5" class="dot-status" />
+      <text x="22" y="15.5" font-size="9" letter-spacing="0.5" class="badge-text">SWITCH PROTOCOL V1</text>
+    </g>
+
+    <!-- Tagline -->
+    <text x="0" y="72" font-size="13" letter-spacing="-0.1" class="text-sub">Cross-Machine API Contract &amp; Breaking-Change Negotiator</text>
+  </g>
+</svg>
