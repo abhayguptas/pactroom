@@ -225,7 +225,7 @@ export const PanelSwitchRoom: React.FC<PanelSwitchRoomProps> = ({
                       )
                     }}
                   >
-                    {msg.content}
+                    {String(msg?.content || '')}
                   </ReactMarkdown>
                 </div>
               </div>

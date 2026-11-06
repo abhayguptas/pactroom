@@ -20,11 +20,16 @@ import {
   Check,
   Zap,
   Users,
-  Code2
+  Code2,
+  Lock,
+  Layers,
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 
 export interface VisualizerStep {
   id: number;
+  stepNum: string;
   label: string;
   badge: string;
   description: string;
@@ -33,25 +38,29 @@ export interface VisualizerStep {
 const STEPS: VisualizerStep[] = [
   {
     id: 1,
-    label: '1. Uncommitted Backend Mutation',
+    stepNum: '01',
+    label: 'Uncommitted Backend Mutation',
     badge: 'Machine A (Dirty Git)',
-    description: 'Backend engineer alters orders.dto.ts on an unpushed local branch. @pact-watch diffs live OpenAPI 3.1.'
+    description: 'Backend engineer alters orders.dto.ts locally. @pact-watch extracts live OpenAPI 3.1 diff before commit.'
   },
   {
     id: 2,
-    label: '2. Cross-Machine Typecheck Failure',
+    stepNum: '02',
+    label: 'Cross-Machine Typecheck Failure',
     badge: 'Machine B (tsc regressed)',
     description: '@pact-verify pulls candidate contract and runs real tsc --noEmit. Catches TS2339 on CheckoutSummary.tsx:22.'
   },
   {
     id: 3,
-    label: '3. Human Approval Gate in Switch Room',
+    stepNum: '03',
+    label: 'Human Approval Gate in Switch Room',
     badge: 'Switch Chamber (auto_approve: false)',
     description: '@pact-sync proposes Option A vs Option B. Requires dual developer sign-off in Slack before touching code.'
   },
   {
     id: 4,
-    label: '4. Synchronized Auto-Patch Green',
+    stepNum: '04',
+    label: 'Synchronized Auto-Patch Green',
     badge: 'Both Machines (0 Errors)',
     description: 'Target repository auto-patched in-place. tsc --noEmit and Vitest re-run with 100% green exit code 0.'
   }
@@ -61,22 +70,31 @@ export const SplitScreenVisualizer: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [selectedOption, setSelectedOption] = useState<'A' | 'B'>('B');
-  const [hasUserApproved, setHasUserApproved] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'machineA' | 'machineB' | 'terminal'>('machineA');
 
   // Auto-play timer
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
-        if (prev >= 4) {
-          return 1;
-        }
+        if (prev >= 4) return 1;
         return prev + 1;
       });
-    }, 4500);
+    }, 5500);
 
     return () => clearInterval(interval);
   }, [isPlaying]);
+
+  // Sync active code tab with current step
+  useEffect(() => {
+    if (currentStep === 1) {
+      setActiveTab('machineA');
+    } else if (currentStep === 2) {
+      setActiveTab('machineB');
+    } else if (currentStep === 4) {
+      setActiveTab('machineB');
+    }
+  }, [currentStep]);
 
   const handleStepClick = (stepId: number) => {
     setCurrentStep(stepId);
@@ -85,62 +103,66 @@ export const SplitScreenVisualizer: React.FC = () => {
 
   const handleOptionSelect = (opt: 'A' | 'B') => {
     setSelectedOption(opt);
-    setHasUserApproved(true);
     setCurrentStep(4);
     setIsPlaying(false);
   };
 
+  const handleReset = () => {
+    setCurrentStep(1);
+    setSelectedOption('B');
+    setActiveTab('machineA');
+    setIsPlaying(true);
+  };
+
   return (
     <div id="visualizer" className="relative w-full py-16 scroll-mt-24">
-      {/* Visualizer Container Card (Crisp Lindy White Card) */}
+      {/* Visualizer Shell (High-End Linear / Stripe Standard) */}
       <div className="rounded-3xl border border-neutral-200/90 bg-white shadow-xl overflow-hidden">
-        {/* Top Control Bar */}
+        {/* Top Control Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-b border-neutral-200 bg-[#FAFAF8]">
-          {/* Left: Section Header */}
+          {/* Left: Product Sub-badge & Title */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
+            <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 shadow-soft-sm">
+              <Zap className="w-4 h-4" />
             </div>
-            <div className="h-4 w-[1px] bg-neutral-200 mx-1" />
-            <div className="flex items-center gap-2">
-              <Radio className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
-              <span className="font-mono text-xs font-semibold text-neutral-800">
-                PactRoom Live Multi-Machine Simulation
-              </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
-                Switch Protocol v1.0
-              </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-neutral-800 uppercase tracking-wider">
+                  Live Interactive Simulation
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
+                  Two Laptops • One Switch Room
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 font-sans mt-0.5">
+                Observe cross-machine contract negotiation and automatic repair before git push.
+              </p>
             </div>
           </div>
 
-          {/* Right: Step Playback Controls */}
+          {/* Right: Scrubber Play/Pause Controls */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-neutral-200 text-xs font-mono text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 transition-colors shadow-soft-sm"
-              title={isPlaying ? 'Pause Auto-Play' : 'Play Auto-Play'}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-mono font-medium text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 transition-all shadow-soft-sm active:scale-95"
             >
               {isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Pause</span>
+                  <Pause className="w-3.5 h-3.5 text-orange-600" />
+                  <span>Pause Demo</span>
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Auto-Play</span>
+                  <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                  <span>Play Demo</span>
                 </>
               )}
             </button>
+
             <button
-              onClick={() => {
-                setCurrentStep(1);
-                setHasUserApproved(false);
-              }}
-              className="p-1.5 rounded-lg bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition-colors shadow-soft-sm"
-              title="Reset to Step 1"
+              onClick={handleReset}
+              className="p-2 rounded-full bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition-colors shadow-soft-sm active:scale-95"
+              title="Reset Simulation"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -156,7 +178,7 @@ export const SplitScreenVisualizer: React.FC = () => {
               <button
                 key={step.id}
                 onClick={() => handleStepClick(step.id)}
-                className={`p-3.5 text-left transition-all relative border-r border-neutral-200 last:border-r-0 ${
+                className={`p-4 text-left transition-all relative border-r border-neutral-200 last:border-r-0 ${
                   isActive
                     ? 'bg-white text-neutral-900 shadow-sm'
                     : 'text-neutral-500 hover:bg-[#ECECE9] hover:text-neutral-800'
@@ -164,25 +186,33 @@ export const SplitScreenVisualizer: React.FC = () => {
               >
                 {isActive && (
                   <motion.div
-                    layoutId="activeStepIndicator"
-                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-orange-400 via-amber-400 to-emerald-500"
+                    layoutId="activeScrubberIndicator"
+                    className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-orange-500 via-amber-400 to-emerald-500"
                   />
                 )}
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`font-semibold ${
-                      isActive
-                        ? 'text-orange-600'
-                        : isCompleted
-                        ? 'text-emerald-600'
-                        : 'text-neutral-500'
-                    }`}
-                  >
-                    {step.label}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-neutral-400">
+                    STEP {step.stepNum}
                   </span>
-                  {isCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                  {isCompleted && (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  )}
+                  {isActive && (
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                  )}
                 </div>
-                <div className="text-[10px] text-neutral-400 truncate mt-0.5">
+                <div
+                  className={`font-semibold text-xs leading-snug line-clamp-1 ${
+                    isActive
+                      ? 'text-neutral-900'
+                      : isCompleted
+                      ? 'text-neutral-700'
+                      : 'text-neutral-500'
+                  }`}
+                >
+                  {step.label}
+                </div>
+                <div className="text-[10px] text-neutral-400 truncate mt-1">
                   {step.badge}
                 </div>
               </button>
@@ -190,199 +220,363 @@ export const SplitScreenVisualizer: React.FC = () => {
           })}
         </div>
 
-        {/* Dynamic Context Banner */}
-        <div className="px-6 py-2.5 bg-orange-50/50 border-b border-orange-100 flex items-center justify-between text-xs text-neutral-700 font-mono">
+        {/* Active Stage Context Bar */}
+        <div className="px-6 py-2.5 bg-orange-50/40 border-b border-orange-100/80 flex items-center justify-between text-xs text-neutral-700 font-mono">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping" />
-            <span className="text-orange-700 font-semibold">Active State:</span>
-            <span>{STEPS[currentStep - 1].description}</span>
+            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-orange-800 font-bold">Phase {currentStep} of 4:</span>
+            <span className="text-neutral-800 font-medium">
+              {STEPS[currentStep - 1].description}
+            </span>
           </div>
-          <div className="hidden sm:flex items-center gap-2 text-neutral-500 text-[11px]">
-            <span>Step {currentStep} of 4</span>
+          <div className="hidden md:flex items-center gap-2 text-neutral-400 text-[11px]">
+            <span>Click any step to inspect state</span>
           </div>
         </div>
 
-        {/* 3-COLUMN SPLIT-SCREEN WORKBENCH */}
+        {/* ========================================================================= */}
+        {/* DUAL-PANE WORKBENCH (Spacious 7:5 Split)                                   */}
+        {/* ========================================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-neutral-200 min-h-[580px]">
-          {/* ========================================================================= */}
-          {/* LEFT COLUMN: MACHINE A — BACKEND LAPTOP (4 Columns)                       */}
-          {/* ========================================================================= */}
-          <div className="lg:col-span-4 p-5 flex flex-col justify-between bg-white text-left">
+          {/* ======================================================================= */}
+          {/* LEFT PANE: CODE & DIAGNOSTIC WORKSPACE (7 Columns, ~650px wide)        */}
+          {/* ======================================================================= */}
+          <div className="lg:col-span-7 flex flex-col justify-between bg-white text-left overflow-hidden">
             <div>
-              {/* Machine A Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-                <div className="flex items-center gap-2">
-                  <Laptop className="w-4 h-4 text-sky-600" />
-                  <span className="font-semibold text-sm text-neutral-800">Machine A (Backend)</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-medium">
-                  macOS • Claude Code
-                </span>
-              </div>
-
-              {/* Agent & Git Metadata */}
-              <div className="mt-3 flex items-center justify-between text-[11px] font-mono bg-[#F8F9FA] p-2.5 rounded-lg border border-neutral-200">
-                <div className="flex items-center gap-1.5">
-                  <GitBranch className="w-3.5 h-3.5 text-sky-600" />
-                  <span className="text-neutral-700 font-semibold">feat/pricing-v2</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      currentStep >= 1 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+              {/* Workspace Tab Switcher */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200 bg-[#FAFAF8]">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {/* Tab 1: Machine A */}
+                  <button
+                    onClick={() => setActiveTab('machineA')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all ${
+                      activeTab === 'machineA'
+                        ? 'bg-white text-sky-800 border border-sky-200 shadow-soft-sm'
+                        : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'
                     }`}
-                  />
-                  <span className="text-amber-700 font-semibold">
-                    {currentStep === 4 ? 'SYNCED & CLEAN' : 'DIRTY (Uncommitted)'}
+                  >
+                    <Laptop className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Machine A: orders.dto.ts</span>
+                    {currentStep >= 1 && currentStep < 4 && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    )}
+                  </button>
+
+                  {/* Tab 2: Machine B */}
+                  <button
+                    onClick={() => setActiveTab('machineB')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all ${
+                      activeTab === 'machineB'
+                        ? 'bg-white text-emerald-800 border border-emerald-200 shadow-soft-sm'
+                        : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'
+                    }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Machine B: CheckoutSummary.tsx</span>
+                    {currentStep === 2 || currentStep === 3 ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                    ) : currentStep === 4 ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    ) : null}
+                  </button>
+
+                  {/* Tab 3: Terminal Logs */}
+                  <button
+                    onClick={() => setActiveTab('terminal')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all ${
+                      activeTab === 'terminal'
+                        ? 'bg-white text-neutral-800 border border-neutral-200 shadow-soft-sm'
+                        : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'
+                    }`}
+                  >
+                    <Terminal className="w-3.5 h-3.5 text-neutral-600" />
+                    <span>Compiler Output</span>
+                  </button>
+                </div>
+
+                {/* Git Branch Badge */}
+                <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-neutral-500">
+                  <GitBranch className="w-3.5 h-3.5 text-neutral-400" />
+                  <span>
+                    {activeTab === 'machineA' ? 'feat/pricing-v2' : 'main'}
                   </span>
                 </div>
               </div>
 
-              {/* Agent Identity */}
-              <div className="mt-3 text-xs font-mono text-neutral-600 flex items-center justify-between">
-                <span className="text-sky-700 flex items-center gap-1 font-semibold">
-                  <span>@pact-watch</span>
-                  <span className="text-[10px] text-neutral-400 font-normal">(addressing: anyone)</span>
-                </span>
-                <span className="text-[10px] text-neutral-500">workspaces/backend-api</span>
-              </div>
-
-              {/* Code Editor Diff Window */}
-              <div className="mt-3 rounded-xl border border-sky-200 bg-[#F8FAFC] overflow-hidden shadow-inner">
-                <div className="px-3 py-1.5 bg-[#F1F5F9] border-b border-sky-100 flex items-center justify-between text-[11px] font-mono text-neutral-600">
-                  <span className="text-sky-800 font-semibold flex items-center gap-1.5">
-                    <FileCode className="w-3 h-3 text-sky-600" />
-                    <span>src/routes/orders.dto.ts</span>
-                  </span>
-                  <span className="text-[10px] text-neutral-500">OpenAPI 3.1 DTO</span>
-                </div>
-
-                <div className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto text-neutral-800">
-                  <div className="text-neutral-400">// OrderResponseSchema definition</div>
-                  <div className="text-sky-700 font-semibold">export const OrderResponseSchema = z.object&#123;</div>
-                  <div className="pl-3 text-neutral-700">id: z.string().uuid(),</div>
-
-                  {/* Dynamic Diff Content based on step and option */}
-                  {currentStep === 4 && selectedOption === 'A' ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="bg-emerald-50 border-l-2 border-emerald-500 pl-3 py-1 my-1"
-                    >
-                      <div className="text-emerald-700 font-semibold">
-                        + pricing_breakdown: z.object(&#123; ... &#125;),
+              {/* Code Window Area */}
+              <div className="p-5 font-mono text-[13px] leading-relaxed bg-[#FFFFFF] overflow-x-auto min-h-[380px]">
+                {/* --------------------------------------------------------------- */}
+                {/* VIEW 1: MACHINE A (BACKEND DTO)                                */}
+                {/* --------------------------------------------------------------- */}
+                {activeTab === 'machineA' && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-neutral-400 text-xs pb-3 mb-2 border-b border-neutral-100 font-sans">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-neutral-700 font-semibold">
+                          workspaces/backend-api/src/routes/orders.dto.ts
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-mono">
+                          OpenAPI 3.1 DTO
+                        </span>
                       </div>
-                      <div className="text-amber-700 text-[10px]">
-                        + /** @deprecated Backward-compatible alias */
-                      </div>
-                      <div className="text-emerald-700 font-semibold">
-                        + total_amount_cents: z.number().optional(),
-                      </div>
-                    </motion.div>
-                  ) : currentStep >= 1 ? (
-                    <div className="my-1">
-                      <div className="bg-rose-50 text-rose-700 border-l-2 border-rose-400 pl-3 py-0.5 line-through">
-                        - total_amount_cents: z.number(),
-                      </div>
-                      <div className="bg-emerald-50 text-emerald-700 border-l-2 border-emerald-500 pl-3 py-0.5">
-                        + pricing_breakdown: z.object(&#123;
-                      </div>
-                      <div className="bg-emerald-50 text-emerald-700 border-l-2 border-emerald-500 pl-6 py-0.5">
-                        + amount_minor: z.number(),
-                      </div>
-                      <div className="bg-emerald-50 text-emerald-700 border-l-2 border-emerald-500 pl-6 py-0.5">
-                        + currency_code: z.string()
-                      </div>
-                      <div className="bg-emerald-50 text-emerald-700 border-l-2 border-emerald-500 pl-3 py-0.5">
-                        + &#125;),
-                      </div>
+                      <span className="text-[11px] text-amber-700 font-mono bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        {currentStep === 4 ? 'Synced & Clean' : 'Uncommitted Local Change'}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="pl-3 text-neutral-700">total_amount_cents: z.number(),</div>
-                  )}
 
-                  <div className="pl-3 text-neutral-700">status: z.enum([&quot;PENDING&quot;, &quot;PAID&quot;])</div>
-                  <div className="text-sky-700 font-semibold">&#125;);</div>
-                </div>
+                    <div className="text-neutral-400">// OrderResponseSchema definition for GET /api/v1/orders/:id</div>
+                    <div className="text-neutral-800">
+                      <span className="text-violet-600 font-semibold">export const</span>{' '}
+                      <span className="text-sky-700 font-bold">OrderResponseSchema</span> = z.object({'{'}
+                    </div>
+                    <div className="pl-6 text-neutral-700">id: z.string().uuid(),</div>
+
+                    {/* Diff lines dynamically shown based on step & option */}
+                    {currentStep === 4 && selectedOption === 'A' ? (
+                      <div className="bg-emerald-50/70 border-l-4 border-emerald-500 pl-4 py-1.5 my-1.5 rounded-r">
+                        <div className="text-emerald-800 font-semibold">
+                          + pricing_breakdown: z.object({'{ ... }'}),
+                        </div>
+                        <div className="text-amber-800 text-xs mt-0.5">
+                          + /** @deprecated Backward-compatible getter alias */
+                        </div>
+                        <div className="text-emerald-800 font-semibold">
+                          + total_amount_cents: z.number().optional(),
+                        </div>
+                      </div>
+                    ) : currentStep >= 1 ? (
+                      <div className="my-1.5 space-y-0.5">
+                        <div className="bg-rose-50 text-rose-700 border-l-4 border-rose-400 pl-4 py-0.5 line-through">
+                          - total_amount_cents: z.number(),
+                        </div>
+                        <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 pl-4 py-0.5 font-semibold">
+                          + pricing_breakdown: z.object({'{'}
+                        </div>
+                        <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 pl-8 py-0.5">
+                          + amount_minor: z.number(),
+                        </div>
+                        <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 pl-8 py-0.5">
+                          + currency_code: z.string()
+                        </div>
+                        <div className="bg-emerald-50 text-emerald-800 border-l-4 border-emerald-500 pl-4 py-0.5 font-semibold">
+                          + {'}'}),
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pl-6 text-neutral-700">total_amount_cents: z.number(),</div>
+                    )}
+
+                    <div className="pl-6 text-neutral-700">
+                      status: z.enum([&quot;PENDING&quot;, &quot;PAID&quot;, &quot;SHIPPED&quot;])
+                    </div>
+                    <div className="text-neutral-800">{'}'});</div>
+                  </div>
+                )}
+
+                {/* --------------------------------------------------------------- */}
+                {/* VIEW 2: MACHINE B (FRONTEND CONSUMER)                          */}
+                {/* --------------------------------------------------------------- */}
+                {activeTab === 'machineB' && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-neutral-400 text-xs pb-3 mb-2 border-b border-neutral-100 font-sans">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-neutral-700 font-semibold">
+                          workspaces/frontend-consumer/src/components/CheckoutSummary.tsx
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-mono">
+                          React Consumer
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[11px] font-mono px-2 py-0.5 rounded border ${
+                          currentStep === 2 || currentStep === 3
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : currentStep === 4
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-neutral-50 text-neutral-600 border-neutral-200'
+                        }`}
+                      >
+                        {currentStep === 2 || currentStep === 3
+                          ? 'Compilation Error TS2339'
+                          : currentStep === 4
+                          ? 'Auto-Patched & Clean'
+                          : 'Idle (Clean)'}
+                      </span>
+                    </div>
+
+                    <div className="text-neutral-400">// Order summary component reading API response</div>
+                    <div className="text-neutral-800">
+                      <span className="text-violet-600 font-semibold">export const</span>{' '}
+                      <span className="text-emerald-700 font-bold">CheckoutSummary</span> = ({'{ order }'}: CheckoutProps) =&gt; {'{'}
+                    </div>
+
+                    {/* Step 2 & 3: Compilation Error Callout */}
+                    {currentStep >= 2 && currentStep < 4 ? (
+                      <div className="my-2 space-y-1.5">
+                        <div className="bg-rose-50 text-rose-800 border-l-4 border-rose-500 pl-4 py-1.5 rounded-r">
+                          <div className="font-semibold">
+                            const total = formatCurrency(order.total_amount_cents);
+                          </div>
+                        </div>
+                        {/* Inline Senior Compiler Diagnostic */}
+                        <div className="p-3 rounded-xl bg-rose-50/80 border border-rose-200 text-rose-900 text-xs font-mono space-y-1">
+                          <div className="flex items-center gap-2 font-bold text-rose-700">
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                            <span>TypeScript Diagnostic (tsc --noEmit)</span>
+                          </div>
+                          <div className="text-rose-800 pl-6">
+                            error TS2339: Property &apos;total_amount_cents&apos; does not exist on type &apos;OrderResponse&apos;.
+                          </div>
+                          <div className="text-neutral-600 pl-6 text-[11px]">
+                            Did you mean &apos;pricing_breakdown&apos;? PactRoom detected this before git commit.
+                          </div>
+                        </div>
+                      </div>
+                    ) : currentStep === 4 && selectedOption === 'B' ? (
+                      /* Step 4 (Option B): Clean Patched Code */
+                      <div className="my-2 bg-emerald-50/80 border-l-4 border-emerald-500 pl-4 py-2 rounded-r space-y-1">
+                        <div className="text-emerald-900 font-semibold">
+                          + const total = formatCurrency(
+                        </div>
+                        <div className="text-emerald-800 pl-4">
+                          + order.pricing_breakdown?.amount_minor ?? order.total_amount_cents
+                        </div>
+                        <div className="text-emerald-900 font-semibold">
+                          + );
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pl-6 text-neutral-700">
+                        const total = formatCurrency(order.total_amount_cents);
+                      </div>
+                    )}
+
+                    <div className="pl-6 text-neutral-700">
+                      return &lt;div className=&quot;checkout-total&quot;&gt;{'{total}'}&lt;/div&gt;;
+                    </div>
+                    <div className="text-neutral-800">{'}'};</div>
+                  </div>
+                )}
+
+                {/* --------------------------------------------------------------- */}
+                {/* VIEW 3: TERMINAL & TEST RUNNER OUTPUT                          */}
+                {/* --------------------------------------------------------------- */}
+                {activeTab === 'terminal' && (
+                  <div className="bg-neutral-900 text-neutral-200 p-4 rounded-xl font-mono text-xs space-y-2 border border-neutral-800 shadow-inner">
+                    <div className="flex items-center justify-between text-neutral-400 pb-2 border-b border-neutral-800 text-[11px]">
+                      <span>Machine B Terminal Session • zsh</span>
+                      <span>tsc --noEmit &amp;&amp; vitest</span>
+                    </div>
+
+                    {currentStep < 2 ? (
+                      <div className="text-neutral-400">
+                        $ git status<br />
+                        On branch main. Your branch is up to date with &apos;origin/main&apos;.<br />
+                        nothing to commit, working tree clean.
+                      </div>
+                    ) : currentStep === 2 || currentStep === 3 ? (
+                      <div className="space-y-1.5 text-neutral-300">
+                        <div className="text-neutral-400">$ pnpm tsc --noEmit</div>
+                        <div className="text-rose-400 font-semibold">
+                          src/components/CheckoutSummary.tsx:22:38 - error TS2339: Property &apos;total_amount_cents&apos; does not exist on type &apos;OrderResponse&apos;.
+                        </div>
+                        <div className="text-rose-400 pl-4">
+                          22 const total = formatCurrency(order.total_amount_cents);<br />
+                          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~~~~~~~~~~~~~~~~~~
+                        </div>
+                        <div className="text-neutral-400 pt-2">$ pnpm vitest run</div>
+                        <div className="text-rose-400">
+                          FAIL tests/contracts/order-contract.test.ts (1 failed, 8 passed)
+                        </div>
+                        <div className="text-amber-300 text-[11px] pt-1">
+                          Build halted by PactRoom verification hook. Exit code 1.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 text-neutral-300">
+                        <div className="text-neutral-400">$ pnpm tsc --noEmit</div>
+                        <div className="text-emerald-400 font-semibold">
+                          ✔ TypeScript compilation successful (0 errors, 0 warnings).
+                        </div>
+                        <div className="text-neutral-400 pt-2">$ pnpm vitest run</div>
+                        <div className="text-emerald-400">
+                          PASS tests/contracts/order-contract.test.ts (9/9 passed in 44ms)
+                        </div>
+                        <div className="text-emerald-300 text-[11px] pt-1">
+                          ✔ All cross-machine contracts ratified. Build green (Exit code 0).
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Bottom Status Box */}
-            <div className="mt-4 p-3 rounded-xl bg-[#F8F9FA] border border-neutral-200 text-[11px] font-mono">
-              <div className="text-neutral-500 flex items-center justify-between mb-1.5">
-                <span>Watcher Telemetry</span>
-                <span className="text-sky-700 font-semibold">git diff: 1 file modified</span>
+            {/* Bottom Status Drawer */}
+            <div className="p-4 bg-[#FAFAF8] border-t border-neutral-200 flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    currentStep === 4
+                      ? 'bg-emerald-500'
+                      : currentStep === 2 || currentStep === 3
+                      ? 'bg-rose-500 animate-pulse'
+                      : 'bg-amber-500'
+                  }`}
+                />
+                <span className="font-semibold text-neutral-800">
+                  {currentStep === 1 && 'Machine A: OpenAPI 3.1 Contract Diff Generated'}
+                  {currentStep === 2 && 'Machine B: 1 Compilation Failure Caught Locally'}
+                  {currentStep === 3 && 'Switch Chamber: Holding Uncommitted Backend Branch'}
+                  {currentStep === 4 && 'Consensus Reached: 0 Breaking Changes Remaining'}
+                </span>
               </div>
-              <div className="text-neutral-700 text-[10px] leading-tight">
-                {currentStep === 1 && (
-                  <span className="text-amber-700 font-semibold">
-                    ⚡ @pact-watch identified breaking change: &quot;total_amount_cents&quot; removed from GET /api/v1/orders/:id. Broadcasting to Switch room.
-                  </span>
-                )}
-                {currentStep === 2 && (
-                  <span className="text-neutral-500">
-                    ⏳ Waiting for @pact-verify cross-machine impact assessment...
-                  </span>
-                )}
-                {currentStep === 3 && (
-                  <span className="text-amber-800 font-semibold">
-                    ✋ Human Approval Gate locked: Backend branch holding uncommitted changes.
-                  </span>
-                )}
-                {currentStep === 4 && (
-                  <span className="text-emerald-700 font-semibold">
-                    ✅ Contract Ratified! Zero breaking changes remaining across repositories.
-                  </span>
-                )}
-              </div>
+              <span className="text-[11px] text-neutral-500 hidden sm:inline">
+                Local-first • Pre-push
+              </span>
             </div>
           </div>
 
-          {/* ========================================================================= */}
-          {/* CENTER COLUMN: SWITCH ROOM — #api-contracts (Slack / Mattermost) (4 Cols) */}
-          {/* ========================================================================= */}
-          <div className="lg:col-span-4 p-5 flex flex-col justify-between bg-[#FCFCFA] relative text-left">
-            <div className="absolute top-2 right-4">
-              <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-200 font-semibold">
-                Switch Agent Protocol
-              </span>
-            </div>
-
+          {/* ======================================================================= */}
+          {/* RIGHT PANE: SWITCH ROOM CONSENSUS CHAMBER (5 Columns, ~500px wide)     */}
+          {/* ======================================================================= */}
+          <div className="lg:col-span-5 flex flex-col justify-between bg-[#FCFCFA] text-left">
             <div>
-              {/* Room Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              {/* Room Top Header */}
+              <div className="p-3.5 border-b border-neutral-200 bg-[#FAFAF8] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-violet-600" />
-                  <span className="font-semibold text-sm text-neutral-800">Switch Room</span>
+                  <span className="font-semibold text-xs text-neutral-800 font-mono uppercase tracking-wider">
+                    Switch Room
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200 font-semibold">
+                    #pactflow-api-contracts
+                  </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  <span>#pactflow-api-contracts</span>
-                </div>
-              </div>
 
-              {/* Multi-bridge badges */}
-              <div className="mt-3 flex items-center justify-between text-[10px] font-mono text-neutral-500 bg-white p-2 rounded-lg border border-neutral-200">
-                <div className="flex items-center gap-2">
-                  <Users className="w-3 h-3 text-neutral-400" />
-                  <span>Bridge: Slack #api-contracts</span>
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span>Slack &amp; Discord Bridged</span>
                 </div>
-                <span className="text-sky-700 font-semibold">3 Agents + 2 Humans</span>
               </div>
 
               {/* Chat Thread Messages Stream */}
-              <div className="mt-3 space-y-3 max-h-[350px] overflow-y-auto pr-1">
+              <div className="p-4 space-y-3 max-h-[460px] overflow-y-auto">
                 {/* Step 1 Message: Watcher alert */}
-                <div className="p-3 rounded-xl bg-white border border-sky-200 text-xs shadow-soft-sm">
-                  <div className="flex items-center justify-between font-mono text-[10px] text-sky-700 mb-1">
-                    <span className="font-bold">@pact-watch</span>
+                <div className="p-3.5 rounded-2xl bg-white border border-sky-200 shadow-soft-sm text-xs">
+                  <div className="flex items-center justify-between font-mono text-[10px] text-sky-700 mb-1.5">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-500" />
+                      @pact-watch (Machine A)
+                    </span>
                     <span className="text-neutral-400">18:42:01</span>
                   </div>
-                  <p className="text-neutral-700 text-[11px] leading-relaxed">
-                    🚨 <strong>BREAKING CONTRACT PROPOSED</strong> on local Machine A (branch: <code className="text-sky-800 bg-sky-50 px-1 py-0.5 rounded">feat/pricing-v2</code>).
-                    Route <code className="text-amber-800 font-semibold">GET /api/v1/orders/:id</code> removed <code className="text-rose-700 line-through">total_amount_cents</code>.
-                    cc: <span className="text-emerald-700 font-semibold">@pact-verify</span>.
+                  <p className="text-neutral-800 text-xs leading-relaxed font-sans">
+                    Uncommitted schema mutation detected in <code className="bg-sky-50 text-sky-800 px-1 py-0.5 rounded font-mono text-[11px]">orders.dto.ts</code> on branch <code className="bg-neutral-100 text-neutral-800 px-1 py-0.5 rounded font-mono text-[11px]">feat/pricing-v2</code>.
                   </p>
+                  <div className="mt-2 text-[11px] font-mono bg-sky-50/60 border border-sky-100 rounded-lg p-2 text-sky-900">
+                    GET /api/v1/orders/:id: removed <span className="line-through text-rose-600">total_amount_cents</span>, added <span className="text-emerald-700 font-semibold">pricing_breakdown</span>.
+                  </div>
                 </div>
 
                 {/* Step 2 Message: Verifier report */}
@@ -390,26 +584,21 @@ export const SplitScreenVisualizer: React.FC = () => {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 rounded-xl bg-white border border-rose-200 text-xs shadow-soft-sm"
+                    className="p-3.5 rounded-2xl bg-white border border-rose-200 shadow-soft-sm text-xs"
                   >
-                    <div className="flex items-center justify-between font-mono text-[10px] text-rose-700 mb-1">
-                      <span className="font-bold flex items-center gap-1">
-                        <span>@pact-verify</span>
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-rose-100 text-rose-800 font-bold">
-                          CRITICAL FAILURE
-                        </span>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-rose-700 mb-1.5">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                        @pact-verify (Machine B)
                       </span>
                       <span className="text-neutral-400">18:42:04</span>
                     </div>
-                    <p className="text-neutral-700 text-[11px] leading-relaxed font-mono">
-                      ❌ Machine B Frontend Regressed!
-                      <br />
-                      <span className="text-rose-700 font-semibold">
-                        tsc --noEmit: TS2339 in CheckoutSummary.tsx:22
-                      </span>
-                      <br />
-                      Vitest: 1 contract test failed.
+                    <p className="text-neutral-800 text-xs leading-relaxed font-sans">
+                      Ran <code className="bg-neutral-100 px-1 py-0.5 rounded font-mono text-[11px]">tsc --noEmit</code> against candidate schema. Discovered 1 critical breakage in frontend codebase.
                     </p>
+                    <div className="mt-2 text-[11px] font-mono bg-rose-50/70 border border-rose-200 rounded-lg p-2 text-rose-900">
+                      TS2339 in CheckoutSummary.tsx:22. Consumer expecting total_amount_cents.
+                    </div>
                   </motion.div>
                 )}
 
@@ -418,57 +607,65 @@ export const SplitScreenVisualizer: React.FC = () => {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 text-xs shadow-soft-sm"
+                    className="p-4 rounded-2xl bg-amber-50/80 border border-amber-300 shadow-soft-sm text-xs"
                   >
-                    <div className="flex items-center justify-between font-mono text-[10px] text-amber-800 mb-1">
-                      <span className="font-bold">@pact-sync</span>
-                      <span className="text-amber-900 text-[9px] px-1.5 py-0.5 rounded bg-amber-200 font-mono font-semibold">
+                    <div className="flex items-center justify-between font-mono text-[10px] text-amber-900 mb-2">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        @pact-sync (Arbitrator)
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-950 font-bold">
                         auto_approve: false
                       </span>
                     </div>
-                    <p className="text-neutral-800 text-[11px] leading-relaxed mb-2 font-medium">
-                      ⚠️ <strong>HUMAN APPROVAL REQUIRED</strong> before modifying any code repository:
+
+                    <p className="text-neutral-900 text-xs font-medium leading-relaxed mb-3">
+                      Human approval required. Choose resolution plan before touching any code:
                     </p>
 
                     {/* Interactive Selection Buttons */}
-                    <div className="space-y-1.5 font-mono text-[10px]">
+                    <div className="space-y-2">
                       <button
                         onClick={() => handleOptionSelect('A')}
-                        className={`w-full p-2 text-left rounded-lg border transition-all ${
+                        className={`w-full p-2.5 text-left rounded-xl border transition-all active:scale-[0.98] ${
                           selectedOption === 'A'
-                            ? 'bg-sky-50 border-sky-300 text-sky-900 shadow-sm'
-                            : 'bg-white border-neutral-200 text-neutral-700 hover:border-sky-300'
+                            ? 'bg-white border-sky-400 ring-2 ring-sky-200 shadow-sm'
+                            : 'bg-white/80 border-neutral-200 text-neutral-700 hover:border-neutral-300'
                         }`}
                       >
-                        <div className="font-semibold text-sky-800 flex items-center justify-between">
-                          <span>Option A: Backend Adapter</span>
-                          {selectedOption === 'A' && <Check className="w-3.5 h-3.5 text-sky-700 font-bold" />}
+                        <div className="flex items-center justify-between font-semibold text-neutral-900 text-xs">
+                          <span>Option A: Backend Backward-Compat Alias</span>
+                          {selectedOption === 'A' && (
+                            <Check className="w-4 h-4 text-sky-600 font-bold" />
+                          )}
                         </div>
-                        <span className="text-neutral-500 text-[9px]">
+                        <p className="text-[11px] text-neutral-500 font-sans mt-0.5">
                           Keep total_amount_cents as computed getter alias on Machine A.
-                        </span>
+                        </p>
                       </button>
 
                       <button
                         onClick={() => handleOptionSelect('B')}
-                        className={`w-full p-2 text-left rounded-lg border transition-all ${
+                        className={`w-full p-2.5 text-left rounded-xl border transition-all active:scale-[0.98] ${
                           selectedOption === 'B'
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm'
-                            : 'bg-white border-neutral-200 text-neutral-700 hover:border-emerald-300'
+                            ? 'bg-white border-emerald-400 ring-2 ring-emerald-200 shadow-sm'
+                            : 'bg-white/80 border-neutral-200 text-neutral-700 hover:border-neutral-300'
                         }`}
                       >
-                        <div className="font-semibold text-emerald-800 flex items-center justify-between">
+                        <div className="flex items-center justify-between font-semibold text-neutral-900 text-xs">
                           <span>Option B: Frontend Synchronized Patch</span>
-                          {selectedOption === 'B' && <Check className="w-3.5 h-3.5 text-emerald-700 font-bold" />}
+                          {selectedOption === 'B' && (
+                            <Check className="w-4 h-4 text-emerald-600 font-bold" />
+                          )}
                         </div>
-                        <span className="text-neutral-500 text-[9px]">
-                          Auto-patch CheckoutSummary.tsx on Machine B with fallback computation.
-                        </span>
+                        <p className="text-[11px] text-neutral-500 font-sans mt-0.5">
+                          Auto-patch CheckoutSummary.tsx on Machine B to read new structure.
+                        </p>
                       </button>
                     </div>
 
-                    <div className="mt-2 text-[10px] text-amber-900 flex items-center gap-1.5 font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                    <div className="mt-3 text-[10px] text-amber-900 flex items-center gap-1.5 font-mono">
+                      <Lock className="w-3 h-3 text-amber-700" />
                       <span>Approved by: @alex.be (Backend) &amp; @sam.fe (Frontend)</span>
                     </div>
                   </motion.div>
@@ -479,16 +676,17 @@ export const SplitScreenVisualizer: React.FC = () => {
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-xs shadow-soft-sm"
+                    className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 shadow-soft-sm text-xs"
                   >
-                    <div className="flex items-center justify-between font-mono text-[10px] text-emerald-800 mb-1">
-                      <span className="font-bold">@pact-sync</span>
+                    <div className="flex items-center justify-between font-mono text-[10px] text-emerald-800 mb-1.5">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        @pact-sync • Ratified
+                      </span>
                       <span className="text-neutral-400">18:42:12</span>
                     </div>
-                    <p className="text-emerald-950 text-[11px] leading-relaxed font-mono">
-                      🎉 <strong>CONTRACT RATIFIED &amp; SEALED</strong>
-                      <br />
-                      Applied Option {selectedOption}. Ran local <code className="text-emerald-800 font-bold">tsc --noEmit</code> (0 errors) and <code className="text-emerald-800 font-bold">vitest run</code> (100% passed).
+                    <p className="text-emerald-950 text-xs leading-relaxed font-sans">
+                      Contract ratified via <strong>Option {selectedOption}</strong>. Automated patch applied in-place. Re-ran <code className="bg-emerald-100 text-emerald-900 px-1 py-0.5 rounded font-mono text-[11px]">tsc --noEmit</code> (0 errors) and <code className="bg-emerald-100 text-emerald-900 px-1 py-0.5 rounded font-mono text-[11px]">vitest</code> (9/9 passing).
                     </p>
                   </motion.div>
                 )}
@@ -496,141 +694,14 @@ export const SplitScreenVisualizer: React.FC = () => {
             </div>
 
             {/* Bottom Room Channel Stats */}
-            <div className="mt-4 p-2.5 rounded-xl bg-white border border-neutral-200 flex items-center justify-between text-[11px] font-mono text-neutral-500">
-              <span className="text-neutral-600">Decision Log</span>
-              <span className="text-emerald-700 font-semibold">pactroom.db: 4 transactions recorded</span>
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* RIGHT COLUMN: MACHINE B — FRONTEND LAPTOP (4 Columns)                     */}
-          {/* ========================================================================= */}
-          <div className="lg:col-span-4 p-5 flex flex-col justify-between bg-white text-left">
-            <div>
-              {/* Machine B Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-                <div className="flex items-center gap-2">
-                  <Laptop className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold text-sm text-neutral-800">Machine B (Frontend)</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                  macOS • Codex / OpenCode
-                </span>
-              </div>
-
-              {/* Agent & Consumer Metadata */}
-              <div className="mt-3 flex items-center justify-between text-[11px] font-mono bg-[#F8F9FA] p-2.5 rounded-lg border border-neutral-200">
-                <div className="flex items-center gap-1.5">
-                  <GitBranch className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-neutral-700 font-semibold">main</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      currentStep === 1
-                        ? 'bg-neutral-400'
-                        : currentStep === 2 || currentStep === 3
-                        ? 'bg-rose-500 animate-pulse'
-                        : 'bg-emerald-500'
-                    }`}
-                  />
-                  <span
-                    className={`font-semibold ${
-                      currentStep === 1
-                        ? 'text-neutral-500'
-                        : currentStep === 2 || currentStep === 3
-                        ? 'text-rose-700'
-                        : 'text-emerald-700'
-                    }`}
-                  >
-                    {currentStep === 1
-                      ? 'IDLE (Clean)'
-                      : currentStep === 2 || currentStep === 3
-                      ? 'COMPILATION BROKEN'
-                      : 'PASSED (0 Errors)'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Agent Identity */}
-              <div className="mt-3 text-xs font-mono text-neutral-600 flex items-center justify-between">
-                <span className="text-emerald-700 flex items-center gap-1 font-semibold">
-                  <span>@pact-verify</span>
-                  <span className="text-[10px] text-neutral-400 font-normal">(addressing: owner-agents)</span>
-                </span>
-                <span className="text-[10px] text-neutral-500">workspaces/frontend-consumer</span>
-              </div>
-
-              {/* Consumer React Component Window */}
-              <div className="mt-3 rounded-xl border border-emerald-200 bg-[#F8FAFC] overflow-hidden shadow-inner">
-                <div className="px-3 py-1.5 bg-[#F1F5F9] border-b border-emerald-100 flex items-center justify-between text-[11px] font-mono text-neutral-600">
-                  <span className="text-emerald-800 font-semibold flex items-center gap-1.5">
-                    <Code2 className="w-3 h-3 text-emerald-600" />
-                    <span>src/components/CheckoutSummary.tsx</span>
-                  </span>
-                  <span className="text-[10px] text-neutral-500">React Consumer</span>
-                </div>
-
-                <div className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto text-neutral-800">
-                  <div className="text-neutral-400">// Checkout summary contract access</div>
-                  <div className="text-emerald-800 font-semibold">export const CheckoutSummary = (&#123; order &#125;) =&gt; &#123;</div>
-
-                  {currentStep >= 2 && currentStep < 4 ? (
-                    <div className="my-1.5 bg-rose-50 border-l-2 border-rose-500 p-2 rounded-r">
-                      <div className="text-rose-700 font-semibold">
-                        const total = formatCurrency(order.total_amount_cents);
-                      </div>
-                      <div className="text-rose-600 text-[10px] mt-1">
-                        💥 TS2339: Property &apos;total_amount_cents&apos; does not exist on type &apos;OrderResponse&apos;.
-                      </div>
-                    </div>
-                  ) : currentStep === 4 && selectedOption === 'B' ? (
-                    <div className="my-1.5 bg-emerald-50 border-l-2 border-emerald-500 p-2 rounded-r">
-                      <div className="text-emerald-800 font-semibold">
-                        + const total = formatCurrency(
-                      </div>
-                      <div className="text-emerald-800 pl-4">
-                        + order.pricing_breakdown?.amount_minor ?? order.total_amount_cents
-                      </div>
-                      <div className="text-emerald-800">
-                        + );
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="pl-3 text-neutral-700">
-                      const total = formatCurrency(order.total_amount_cents);
-                    </div>
-                  )}
-
-                  <div className="pl-3 text-neutral-700">return &lt;div&gt;&#123;total&#125;&lt;/div&gt;;</div>
-                  <div className="text-emerald-800 font-semibold">&#125;;</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Telemetry Box */}
-            <div className="mt-4 p-3 rounded-xl bg-[#F8F9FA] border border-neutral-200 text-[11px] font-mono">
-              <div className="text-neutral-500 flex items-center justify-between mb-1.5">
-                <span>Compiler Diagnostic</span>
-                <span className="text-emerald-700 font-semibold">tsc: exit code 0</span>
-              </div>
-              <div className="text-neutral-700 text-[10px] leading-tight">
-                {currentStep < 2 && (
-                  <span className="text-neutral-500">
-                    Watching for incoming contract diffs from Switch room.
-                  </span>
-                )}
-                {(currentStep === 2 || currentStep === 3) && (
-                  <span className="text-rose-700 font-semibold">
-                    🚨 1 compilation error &amp; 1 Vitest suite failed. Build blocked before commit.
-                  </span>
-                )}
-                {currentStep === 4 && (
-                  <span className="text-emerald-700 font-semibold">
-                    ✅ All 9 Vitest contract tests passing. Code is ready to ship.
-                  </span>
-                )}
-              </div>
+            <div className="p-3.5 border-t border-neutral-200 bg-white flex items-center justify-between text-xs font-mono text-neutral-500">
+              <span className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-neutral-400" />
+                <span>3 Agents • 2 Human Engineers</span>
+              </span>
+              <span className="text-emerald-700 font-semibold">
+                pactroom.db: 4 signed events
+              </span>
             </div>
           </div>
         </div>

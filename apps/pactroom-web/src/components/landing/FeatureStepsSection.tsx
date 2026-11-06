@@ -185,18 +185,37 @@ export const FeatureStepsSection: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Step 1 Card: Connect Your Tools */}
             <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-soft-sm p-7 text-left hover:border-neutral-300 transition-all group">
-              <div className="h-44 rounded-xl bg-[#F8F9FA] border border-neutral-100 flex items-center justify-center p-6 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-neutral-200 shadow-sm flex items-center justify-center text-sky-600 font-mono font-bold text-xs">
-                    Machine A
+              <div className="h-44 rounded-xl bg-[#F8F9FA] border border-neutral-100 flex items-center justify-center p-4 mb-6 overflow-hidden">
+                <div className="flex items-center justify-center gap-2 w-full max-w-sm">
+                  {/* Machine A Node */}
+                  <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200/90 shadow-soft-sm flex items-center gap-2 shrink-0">
+                    <div className="w-6 h-6 rounded-lg bg-sky-50 border border-sky-200/80 flex items-center justify-center text-sky-600 shrink-0">
+                      <Laptop className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <div className="text-xs font-mono font-bold text-neutral-900">Machine A</div>
+                      <div className="text-[10px] text-neutral-400 font-mono">Backend API</div>
+                    </div>
                   </div>
-                  <div className="h-0.5 w-10 bg-orange-400/60" />
-                  <div className="w-10 h-10 rounded-full bg-neutral-900 text-white flex items-center justify-center text-xs font-bold">
-                    ✦
+
+                  {/* Connecting Line + Switch Protocol Hub */}
+                  <div className="flex items-center shrink-0">
+                    <div className="h-0.5 w-3 bg-orange-300" />
+                    <div className="w-7 h-7 rounded-full bg-neutral-900 text-amber-400 border border-orange-200 shadow-soft-sm flex items-center justify-center text-[10px] font-bold shrink-0">
+                      ✦
+                    </div>
+                    <div className="h-0.5 w-3 bg-orange-300" />
                   </div>
-                  <div className="h-0.5 w-10 bg-orange-400/60" />
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-neutral-200 shadow-sm flex items-center justify-center text-emerald-600 font-mono font-bold text-xs">
-                    Machine B
+
+                  {/* Machine B Node */}
+                  <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200/90 shadow-soft-sm flex items-center gap-2 shrink-0">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shrink-0">
+                      <Laptop className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <div className="text-xs font-mono font-bold text-neutral-900">Machine B</div>
+                      <div className="text-[10px] text-neutral-400 font-mono">Frontend App</div>
+                    </div>
                   </div>
                 </div>
               </div>

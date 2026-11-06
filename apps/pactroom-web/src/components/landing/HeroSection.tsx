@@ -114,7 +114,7 @@ export const HeroSection: React.FC = () => {
           </div>
 
           {/* Floating App Icons on Left Rail (Machine A Tools: Fastify, Claude, Git) */}
-          <div className="hidden xl:flex flex-col gap-4 absolute -left-12 top-1/2 -translate-y-1/2 z-20">
+          <div className="hidden xl:flex flex-col gap-7 absolute -left-14 top-1/2 -translate-y-1/2 z-20">
             <div className="flex items-center gap-3">
               {/* Fastify Logo Badge */}
               <div className="w-13 h-13 rounded-2xl bg-white border border-neutral-200/80 shadow-soft-md flex items-center justify-center p-3 transition-all duration-200 hover:scale-110 hover:shadow-soft-lg group relative cursor-pointer">
@@ -122,7 +122,7 @@ export const HeroSection: React.FC = () => {
                   <path d="M16 2L4 18H15L12 30L28 12H17L20 2H16Z" fill="#18181B" />
                   <path d="M18 2L9 16H18L15 28L26 12H17L18 2Z" fill="#00ED64" opacity="0.35" />
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   Fastify Backend
                 </span>
               </div>
@@ -132,19 +132,19 @@ export const HeroSection: React.FC = () => {
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                   <path d="M13.5 2L15 8L21 6.5L16.5 11.5L22 14.5L16 16.5L17.5 22.5L12.5 18L10 23.5L8.5 17.5L2.5 19L7 14L1.5 11L7.5 9L6 3L11 7.5L13.5 2Z" fill="#CC785C" />
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   Claude Code
                 </span>
               </div>
             </div>
 
             {/* Git Branch Badge */}
-            <div className="flex items-center gap-3 ml-6">
+            <div className="flex items-center gap-3 ml-7">
               <div className="w-13 h-13 rounded-2xl bg-white border border-neutral-200/80 shadow-soft-md flex items-center justify-center p-3 transition-all duration-200 hover:scale-110 hover:shadow-soft-lg group relative cursor-pointer">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                   <path d="M21.6 10.9L13.1 2.4C12.3 1.6 11.1 1.6 10.3 2.4L8.4 4.3L10.9 6.8C11.6 6.5 12.5 6.7 13.1 7.3C13.7 7.9 13.9 8.8 13.6 9.5L16.1 12C16.8 11.7 17.7 11.9 18.3 12.5C19.1 13.3 19.1 14.6 18.3 15.4C17.5 16.2 16.2 16.2 15.4 15.4C14.8 14.8 14.6 13.9 14.9 13.2L12.6 10.9V16.3C12.8 16.5 13 16.8 13.1 17.1C13.6 18.2 13.1 19.5 12 20C10.9 20.5 9.6 20 9.1 18.9C8.6 17.8 9.1 16.5 10.2 16C10.5 15.8 10.8 15.8 11.1 15.8V10.4C10.8 10.4 10.5 10.4 10.2 10.2L7.7 12.7C8 13.4 7.8 14.3 7.2 14.9C6.4 15.7 5.1 15.7 4.3 14.9C3.5 14.1 3.5 12.8 4.3 12C4.9 11.4 5.8 11.2 6.5 11.5L9 9C8.7 8.3 8.9 7.4 9.5 6.8C10.1 6.2 11 6 11.7 6.3L9.2 3.8L2.4 10.6C1.6 11.4 1.6 12.6 2.4 13.4L10.9 21.9C11.7 22.7 12.9 22.7 13.7 21.9L21.6 14C22.4 13.2 22.4 12 21.6 10.9Z" fill="#F05032" />
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   Local Git HEAD
                 </span>
               </div>
@@ -152,7 +152,7 @@ export const HeroSection: React.FC = () => {
           </div>
 
           {/* Floating App Icons on Right Rail (Machine B Tools: Slack, TypeScript, Vitest) */}
-          <div className="hidden xl:flex flex-col gap-4 absolute -right-12 top-1/2 -translate-y-1/2 z-20">
+          <div className="hidden xl:flex flex-col gap-7 absolute -right-14 top-1/2 -translate-y-1/2 z-20">
             <div className="flex items-center gap-3 justify-end">
               {/* Slack Logo Badge */}
               <div className="w-13 h-13 rounded-2xl bg-white border border-neutral-200/80 shadow-soft-md flex items-center justify-center p-3 transition-all duration-200 hover:scale-110 hover:shadow-soft-lg group relative cursor-pointer">
@@ -162,32 +162,32 @@ export const HeroSection: React.FC = () => {
                   <path d="M18.96 9.16a2.27 2.27 0 1 1 2.27 2.27h-2.27V9.16zm-1.14 0a2.27 2.27 0 0 1-4.54 0V3.48a2.27 2.27 0 1 1 4.54 0v5.68z" fill="#2EB67D"/>
                   <path d="M14.84 18.96a2.27 2.27 0 1 1 2.27 2.27v-2.27h-2.27zm0-1.14a2.27 2.27 0 0 1 0-4.54h5.68a2.27 2.27 0 1 1 0 4.54h-5.68z" fill="#ECB22E"/>
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   Slack Channel Bridge
                 </span>
               </div>
 
               {/* TypeScript Logo Badge */}
               <div className="w-13 h-13 rounded-2xl bg-white border border-neutral-200/80 shadow-soft-md flex items-center justify-center p-3 transition-all duration-200 hover:scale-110 hover:shadow-soft-lg group relative cursor-pointer">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-                  <rect width="24" height="24" rx="4" fill="#3178C6" />
-                  <path d="M11.5 8H6V9.5H8V17H9.5V9.5H11.5V8Z" fill="white" />
-                  <path d="M17.5 10.5C17.5 9.1 16.4 8 14.8 8C13.2 8 12.2 9.1 12.2 10.3H13.6C13.6 9.7 14.1 9.2 14.8 9.2C15.5 9.2 16 9.7 16 10.3C16 10.9 15.6 11.3 14.6 11.7C13.2 12.3 12.2 13.1 12.2 14.6C12.2 16.1 13.3 17.1 14.9 17.1C16.6 17.1 17.7 16 17.7 14.7H16.2C16.2 15.4 15.6 15.9 14.9 15.9C14.2 15.9 13.7 15.4 13.7 14.7C13.7 13.9 14.1 13.5 15.2 13.1C16.6 12.5 17.5 11.8 17.5 10.5Z" fill="white" />
+                <svg className="w-6 h-6" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="6" fill="#3178C6" />
+                  <path d="M14.5 11H8V13.2H10.5V22H12.2V13.2H14.5V11Z" fill="white" />
+                  <path d="M22.5 14.5C22.5 12.8 21.2 11.5 19.3 11.5C17.4 11.5 16.2 12.8 16.2 14.2H17.8C17.8 13.5 18.4 12.9 19.3 12.9C20.1 12.9 20.8 13.5 20.8 14.3C20.8 15 20.3 15.5 19 16C17.2 16.7 16.2 17.7 16.2 19.5C16.2 21.3 17.6 22.5 19.5 22.5C21.6 22.5 22.8 21.1 22.8 19.6H21.2C21.2 20.5 20.5 21.1 19.5 21.1C18.6 21.1 17.9 20.5 17.9 19.6C17.9 18.7 18.5 18.2 19.7 17.7C21.4 17 22.5 16.1 22.5 14.5Z" fill="white" />
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   tsc --noEmit Check
                 </span>
               </div>
             </div>
 
             {/* Vitest Logo Badge */}
-            <div className="flex items-center gap-3 justify-end mr-6">
+            <div className="flex items-center gap-3 justify-end mr-7">
               <div className="w-13 h-13 rounded-2xl bg-white border border-neutral-200/80 shadow-soft-md flex items-center justify-center p-3 transition-all duration-200 hover:scale-110 hover:shadow-soft-lg group relative cursor-pointer">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                   <path d="M12 2L4 16H10L8 22L19 9H13L15 2H12Z" fill="#729B1A" />
                   <path d="M13 2L6 14H11L9 20L18 8H13L13 2Z" fill="#FCC72B" opacity="0.65" />
                 </svg>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-30">
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-md bg-neutral-900 text-white text-[10px] font-mono whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md z-40">
                   Vitest Runner
                 </span>
               </div>
