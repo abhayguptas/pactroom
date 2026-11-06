@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     'Vitest',
     'Flip the Switch Hackathon'
   ],
-  authors: [{ name: 'Abhay Gupta', url: 'https://github.com/abhayguptas' }],
+  authors: [{ name: 'Abhay Gupta', url: 'https://github.com/abhayguptas/pactroom' }],
   creator: 'Abhay Gupta',
   publisher: 'PactRoom',
   icons: {
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     title: 'PactRoom | Cross-Machine API Contract & Breaking-Change Negotiator',
     description:
       'Stop breaking frontend builds from uncommitted backend branches. Connected local coding agents over the Switch Agent Protocol.',
-    creator: '@pactroom',
+    creator: '@siddhiguptas',
     images: ['/docs/assets/pactroom-logo.svg']
   },
   robots: {

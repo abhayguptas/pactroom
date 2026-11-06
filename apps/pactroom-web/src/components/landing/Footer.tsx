@@ -96,10 +96,10 @@ export const Footer: React.FC = () => {
                 Company
               </div>
               <ul className="space-y-2 text-xs">
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">View Catalog</a></li>
+                <li><a href="https://github.com/abhayguptas/pactroom" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub Repository</a></li>
                 <li><a href="https://switch.xyz" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Switch Core Protocol</a></li>
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Browse Datasets</a></li>
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Request a Custom Chamber</a></li>
+                <li><a href="https://x.com/siddhiguptas" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Updates on X</a></li>
+                <li><a href="https://www.linkedin.com/in/siddhiguptas/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">LinkedIn</a></li>
               </ul>
             </div>
 
@@ -109,10 +109,10 @@ export const Footer: React.FC = () => {
                 Resources
               </div>
               <ul className="space-y-2 text-xs">
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a></li>
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Terms of Service</a></li>
-                <li><a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Flip the Switch Hackathon</a></li>
+                <li><a href="https://github.com/abhayguptas/pactroom#readme" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a></li>
+                <li><a href="https://github.com/abhayguptas/pactroom/blob/main/pactroom.template.yaml" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Switch YAML Template</a></li>
+                <li><a href="/studio" className="hover:text-white transition-colors">Live Contract Studio</a></li>
+                <li><a href="https://github.com/abhayguptas/pactroom" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Flip the Switch Hackathon</a></li>
               </ul>
             </div>
           </div>
@@ -120,16 +120,16 @@ export const Footer: React.FC = () => {
           {/* Bottom Row: Copyright & Social Links */}
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
             <div>
-              © 2026 PactRoom. Built with ❤️ for the Flip the Switch Hackathon.
+              © 2026 PactRoom. Built for the Flip the Switch Hackathon.
             </div>
             <div className="flex items-center gap-4 text-neutral-400">
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="GitHub">
+              <a href="https://github.com/abhayguptas/pactroom" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="GitHub">
                 <Github className="w-4 h-4" />
               </a>
-              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="Twitter">
+              <a href="https://x.com/siddhiguptas" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="Twitter">
                 <Twitter className="w-4 h-4" />
               </a>
-              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="LinkedIn">
+              <a href="https://www.linkedin.com/in/siddhiguptas/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors" aria-label="LinkedIn">
                 <Linkedin className="w-4 h-4" />
               </a>
             </div>

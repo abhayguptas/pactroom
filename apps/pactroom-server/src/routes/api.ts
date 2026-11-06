@@ -21,9 +21,6 @@ const frontendWorkspace = process.env.FRONTEND_WORKSPACE || 'workspaces/frontend
 const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
   ? backendWorkspace
   : path.resolve(rootDir, backendWorkspace);
-const frontendWorkspaceDir = path.isAbsolute(frontendWorkspace)
-  ? frontendWorkspace
-  : path.resolve(rootDir, frontendWorkspace);
 
 export const apiRouter = Router();
 

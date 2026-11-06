@@ -16,10 +16,29 @@ import {
   GitWorkspaceInfo
 } from '@/components/studio';
 
-const DEFAULT_SERVER_URL = process.env.NEXT_PUBLIC_PACTROOM_SERVER_URL || 'http://localhost:4000';
+const getInitialServerUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_PACTROOM_SERVER_URL) {
+    return process.env.NEXT_PUBLIC_PACTROOM_SERVER_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const port = process.env.NEXT_PUBLIC_SERVER_PORT || '3002';
+    return `${window.location.protocol}//${window.location.hostname}:${port}`;
+  }
+  return 'http://localhost:3002';
+};
 
 export default function StudioPage() {
-  const [serverUrl] = useState<string>(DEFAULT_SERVER_URL);
+  const [serverUrl, setServerUrl] = useState<string>(getInitialServerUrl);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_PACTROOM_SERVER_URL) {
+      const port = process.env.NEXT_PUBLIC_SERVER_PORT || '3002';
+      const dynamicUrl = `${window.location.protocol}//${window.location.hostname}:${port}`;
+      if (serverUrl !== dynamicUrl) {
+        setServerUrl(dynamicUrl);
+      }
+    }
+  }, []);
 
   // Studio Real-time State
   const [connected, setConnected] = useState<boolean>(false);

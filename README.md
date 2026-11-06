@@ -70,7 +70,7 @@ To verify the full PactRoom platform locally:
 
 ```bash
 # 1. Clone repository & install dependencies
-git clone https://github.com/sandbox-quantum/switch.git pactroom
+git clone https://github.com/abhayguptas/pactroom.git pactroom
 cd pactroom && pnpm install
 
 # 2. Run automated test suites (57 tests passing + 128 template checks)
@@ -81,8 +81,24 @@ pnpm run validate:template
 pnpm dev
 # Web Studio: http://localhost:3000/studio
 # Landing Page: http://localhost:3000
-# Server & SQLite: http://localhost:4000
+# Server & SQLite: http://localhost:3002
 ```
+
+### Single-Command Production Deployment (Ubuntu VM on Azure / Cloud)
+
+To deploy the entire stack on an Ubuntu machine with a single command:
+
+```bash
+git clone https://github.com/abhayguptas/pactroom.git && cd pactroom && bash deploy.sh
+```
+
+**Azure Network Security Group (NSG) Inbound Rules**:
+- **Destination Port Ranges**: `3000 - 3002` (TCP)
+  - Port 3000: Web Landing Page & Contract Studio
+  - Port 3001: Fastify Microservice & OpenAPI 3.1 Docs
+  - Port 3002: PactRoom Engine, SSE Event Stream, & SQLite Ledger
+- **Coexistence**: Safe to run alongside existing services on ports 8000, 8001, and running Docker containers.
+- **Process Supervisor**: Managed by PM2 with auto-restart (`pm2 status`, `pm2 logs`, `pm2 restart all`).
 
 ### Quick Verification Walkthrough:
 1. Open [http://localhost:3000/studio](http://localhost:3000/studio).
@@ -167,7 +183,7 @@ If you already use Switch Console and just want the cross-machine agent chamber:
 If you want the complete 4-quadrant mission control center, live AST OpenAPI 3.1 diffing, child-process compiler harness, and immutable audit logs:
 1. Clone and install the monorepo:
    ```bash
-   git clone https://github.com/sandbox-quantum/switch.git pactroom
+   git clone https://github.com/abhayguptas/pactroom.git pactroom
    cd pactroom
    pnpm install
    ```
@@ -350,7 +366,7 @@ The complete workflow can be reproduced locally with the following steps:
 ### 1. Clone the Repository and Install Dependencies
 
 ```bash
-git clone https://github.com/sandbox-quantum/switch.git pactroom
+git clone https://github.com/abhayguptas/pactroom.git pactroom
 cd pactroom
 pnpm install
 ```
@@ -540,6 +556,14 @@ flowchart LR
 - [x] Human Approval Gate: Enforces `auto_approve: false` on `{team}-sync`.
 - [x] Built with Wispr Flow: Documents voice-driven prompt entry for the side track.
 - [x] Reproduction: Step-by-step reproduction instructions with passing test suites.
+
+---
+
+## Project & Team Links
+
+- **GitHub Repository**: [https://github.com/abhayguptas/pactroom](https://github.com/abhayguptas/pactroom)
+- **Updates on X**: [https://x.com/siddhiguptas](https://x.com/siddhiguptas)
+- **LinkedIn**: [https://www.linkedin.com/in/siddhiguptas/](https://www.linkedin.com/in/siddhiguptas/)
 
 ---
 

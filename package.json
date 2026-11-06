@@ -5,6 +5,7 @@
   "description": "PactRoom: Cross-Machine API Contract & Breaking-Change Negotiator for Switch Rooms",
   "scripts": {
     "dev": "concurrently -n \"backend,server,web\" -c \"blue,green,magenta\" \"pnpm --filter backend-api dev\" \"pnpm --filter pactroom-server dev\" \"pnpm --filter pactroom-web dev\"",
+    "start": "concurrently -n \"backend,server,web\" -c \"blue,green,magenta\" \"pnpm --filter backend-api start\" \"pnpm --filter pactroom-server start\" \"pnpm --filter pactroom-web start\"",
     "build": "pnpm --filter contract-engine build && pnpm --filter backend-api build && pnpm --filter pactroom-server build && pnpm --filter pactroom-web build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",

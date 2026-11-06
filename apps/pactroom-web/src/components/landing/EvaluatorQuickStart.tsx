@@ -208,7 +208,7 @@ export const EvaluatorQuickStart: React.FC = () => {
                     STEP 01
                   </span>
                   <button
-                    onClick={() => copyToClipboard('git clone https://github.com/sandbox-quantum/switch.git pactroom && cd pactroom && pnpm install', 'step1')}
+                    onClick={() => copyToClipboard('git clone https://github.com/abhayguptas/pactroom.git pactroom && cd pactroom && pnpm install', 'step1')}
                     className="text-neutral-400 hover:text-neutral-900 transition-colors p-1"
                     title="Copy command"
                   >
@@ -223,7 +223,7 @@ export const EvaluatorQuickStart: React.FC = () => {
                 </p>
               </div>
               <pre className="p-3 rounded-xl bg-neutral-900 text-neutral-200 font-mono text-[11px] overflow-x-auto leading-relaxed">
-{`git clone https://github.com/sandbox-quantum/switch.git pactroom
+{`git clone https://github.com/abhayguptas/pactroom.git pactroom
 cd pactroom && pnpm install`}
               </pre>
             </div>
@@ -247,13 +247,13 @@ cd pactroom && pnpm install`}
                   Launch Visual Studio &amp; Engine
                 </h4>
                 <p className="text-xs text-neutral-500 leading-relaxed mb-3">
-                  Concurrently boots Next.js web (3000), protocol bridge (4000), and backend API (3001).
+                  Concurrently boots Next.js web (3000), protocol bridge (3002), and backend API (3001).
                 </p>
               </div>
               <pre className="p-3 rounded-xl bg-neutral-900 text-neutral-200 font-mono text-[11px] overflow-x-auto leading-relaxed">
 {`pnpm dev
 # Studio: http://localhost:3000/studio
-# Engine: http://localhost:4000`}
+# Engine: http://localhost:3002`}
               </pre>
             </div>
 

@@ -13,7 +13,9 @@ const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
   : path.resolve(rootDir, backendWorkspace);
 const backendSchemasDir = path.resolve(backendWorkspaceDir, 'src/schemas');
 
-const PORT = process.env.PACTROOM_SERVER_PORT ? parseInt(process.env.PACTROOM_SERVER_PORT, 10) : 4000;
+const PORT = process.env.PACTROOM_SERVER_PORT
+  ? parseInt(process.env.PACTROOM_SERVER_PORT, 10)
+  : 3002;
 const app = createServerApp();
 
 app.listen(PORT, () => {
