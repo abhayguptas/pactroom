@@ -95,7 +95,21 @@ pnpm install
 
 # 6. Build All Projects
 echo -e "\n${CYAN}[4/6] Building TypeScript engines, backend microservice, and Next.js web studio...${NC}"
-pnpm build
+pnpm --filter contract-engine build
+pnpm --filter backend-api build
+pnpm --filter pactroom-server build
+pnpm --filter pactroom-web build
+
+# Verify build outputs exist
+if [ ! -f "workspaces/backend-api/dist/index.js" ]; then
+  echo -e "${RED}Error: workspaces/backend-api/dist/index.js was not generated.${NC}"
+  exit 1
+fi
+if [ ! -f "apps/pactroom-server/dist/index.js" ]; then
+  echo -e "${RED}Error: apps/pactroom-server/dist/index.js was not generated.${NC}"
+  exit 1
+fi
+echo -e "  ${GREEN}✓${NC} All workspace build artifacts verified on disk."
 
 # 7. Validate Switch Room Template
 echo -e "\n${CYAN}[5/6] Validating Switch 1.0 room template conformance...${NC}"

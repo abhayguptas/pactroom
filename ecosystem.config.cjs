@@ -1,10 +1,12 @@
+const path = require('path');
+
 module.exports = {
   apps: [
     {
       name: 'pactroom-web',
-      script: 'node_modules/.bin/next',
+      script: path.resolve(__dirname, 'apps/pactroom-web/node_modules/next/dist/bin/next'),
       args: 'start -p 3000',
-      cwd: './apps/pactroom-web',
+      cwd: path.resolve(__dirname, 'apps/pactroom-web'),
       instances: 1,
       autorestart: true,
       watch: false,
@@ -17,8 +19,8 @@ module.exports = {
     },
     {
       name: 'backend-api',
-      script: './dist/index.js',
-      cwd: './workspaces/backend-api',
+      script: path.resolve(__dirname, 'workspaces/backend-api/dist/index.js'),
+      cwd: path.resolve(__dirname, 'workspaces/backend-api'),
       instances: 1,
       autorestart: true,
       watch: false,
@@ -30,8 +32,8 @@ module.exports = {
     },
     {
       name: 'pactroom-server',
-      script: './dist/index.js',
-      cwd: './apps/pactroom-server',
+      script: path.resolve(__dirname, 'apps/pactroom-server/dist/index.js'),
+      cwd: path.resolve(__dirname, 'apps/pactroom-server'),
       instances: 1,
       autorestart: true,
       watch: false,
@@ -44,4 +46,3 @@ module.exports = {
     }
   ]
 };
-
