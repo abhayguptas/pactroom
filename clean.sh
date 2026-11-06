@@ -12,16 +12,14 @@ pm2 kill 2>/dev/null || true
 
 echo "==> Terminating any orphan processes on ports 3000, 3001, 3002..."
 for port in 3000 3001 3002; do
-  if command -v fuser >/dev/null 2>&1; then
-    fuser -k -9 "${port}/tcp" 2>/dev/null || true
-  fi
-
   if command -v lsof >/dev/null 2>&1; then
     PIDS=$(lsof -ti ":${port}" 2>/dev/null || true)
     if [ -n "$PIDS" ]; then
       echo "Killing PID(s) $PIDS on port $port..."
       kill -9 $PIDS 2>/dev/null || true
     fi
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -k -9 "${port}/tcp" 2>/dev/null || true
   fi
 done
 

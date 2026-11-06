@@ -78,13 +78,11 @@ fi
 
 for port in "${TARGET_PORTS[@]}"; do
   # Find and kill any orphan process holding this port (e.g. from deleted folders)
-  if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${port}/tcp" 2>/dev/null || true
-  fi
-
   PIDS=""
   if command -v lsof >/dev/null 2>&1; then
     PIDS=$(lsof -ti ":${port}" 2>/dev/null || true)
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -k -9 "${port}/tcp" 2>/dev/null || true
   fi
 
   if [ -n "$PIDS" ]; then
