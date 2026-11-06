@@ -169,3 +169,4 @@ echo -e "  • View live logs:      ${CYAN}pm2 logs${NC}"
 echo -e "  • Restart stack:       ${CYAN}pm2 restart all${NC}"
 echo -e "  • Stop stack:          ${CYAN}pm2 stop all${NC}"
 echo -e "================================================================\n"
+
