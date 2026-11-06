@@ -67,26 +67,32 @@ if ! command -v pm2 >/dev/null 2>&1; then
 fi
 echo -e "  ${GREEN}✓${NC} PM2 detected: ${BOLD}$(pm2 -v)${NC}"
 
-# 4. Check Port Conflicts (Target Range: 3000, 3001, 3002)
-echo -e "\n${CYAN}[2/6] Checking port availability in the 3000 range...${NC}"
+# 4. Check & Free Ports (Target Range: 3000, 3001, 3002)
+echo -e "\n${CYAN}[2/6] Freeing and verifying ports in the 3000 range...${NC}"
 TARGET_PORTS=(3000 3001 3002)
+
+# Stop any existing PM2 pactroom processes
+if command -v pm2 >/dev/null 2>&1; then
+  pm2 delete pactroom-web backend-api pactroom-server 2>/dev/null || true
+fi
+
 for port in "${TARGET_PORTS[@]}"; do
-  if command -v ss >/dev/null 2>&1; then
-    OCCUPIED=$(ss -tulpn 2>/dev/null | grep ":${port} " || true)
-  elif command -v lsof >/dev/null 2>&1; then
-    OCCUPIED=$(lsof -i ":${port}" 2>/dev/null || true)
-  else
-    OCCUPIED=""
+  # Find and kill any orphan process holding this port (e.g. from deleted folders)
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${port}/tcp" 2>/dev/null || true
   fi
 
-  if [ -n "$OCCUPIED" ]; then
-    echo -e "  ${YELLOW}Notice: Port ${port} is currently in use.${NC}"
-    echo -e "  Stopping any previously running PactRoom instances..."
-    pm2 delete pactroom-web backend-api pactroom-server 2>/dev/null || true
-    break
-  else
-    echo -e "  ${GREEN}✓${NC} Port ${port} is free and ready."
+  PIDS=""
+  if command -v lsof >/dev/null 2>&1; then
+    PIDS=$(lsof -ti ":${port}" 2>/dev/null || true)
   fi
+
+  if [ -n "$PIDS" ]; then
+    echo -e "  ${YELLOW}Terminating orphan process on port ${port} (PID: ${PIDS})...${NC}"
+    kill -9 $PIDS 2>/dev/null || true
+    sleep 0.5
+  fi
+  echo -e "  ${GREEN}✓${NC} Port ${port} is free and ready."
 done
 
 # 5. Install Dependencies
@@ -95,6 +101,7 @@ pnpm install
 
 # 6. Build All Projects
 echo -e "\n${CYAN}[4/6] Building TypeScript engines, backend microservice, and Next.js web studio...${NC}"
+rm -rf apps/pactroom-web/.next
 pnpm --filter contract-engine build
 pnpm --filter backend-api build
 pnpm --filter pactroom-server build
