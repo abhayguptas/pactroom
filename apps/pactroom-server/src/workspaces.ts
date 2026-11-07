@@ -74,3 +74,4 @@ export function getDiscoveredWorkspaces(): ResolvedWorkspaces {
     backendSchemasDir: path.resolve(backendDir, 'src/schemas')
   };
 }
+
