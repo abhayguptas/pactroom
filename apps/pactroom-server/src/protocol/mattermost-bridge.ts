@@ -80,22 +80,31 @@ export async function initMattermostBridge(
   const teamName = process.env.SWITCH_TEAM_NAME || 'switch';
   const channelName = process.env.SWITCH_CHANNEL_NAME || 'pactroom-api-contracts';
 
-  // If channelId wasn't passed, resolve it automatically from Mattermost API
-  if (!channelId) {
-    try {
-      const chanRes = await fetch(`${connectedUrl}/api/v4/teams/name/${teamName}/channels/name/${channelName}`, {
-        headers: { Authorization: `Bearer ${connectedToken}` }
-      });
-      if (chanRes.ok) {
-        const chanData = (await chanRes.json()) as { id?: string };
-        if (chanData.id) {
-          channelId = chanData.id;
-          console.log(`[mattermost-bridge] ✓ Auto-resolved channel '${channelName}' -> ID: ${channelId}`);
+  // Auto-resolve channel: find the latest room matching channelName in team
+  try {
+    const teamRes = await fetch(`${connectedUrl}/api/v4/teams/name/${teamName}`, {
+      headers: { Authorization: `Bearer ${connectedToken}` }
+    });
+    if (teamRes.ok) {
+      const teamData = (await teamRes.json()) as { id?: string };
+      if (teamData.id) {
+        const channelsRes = await fetch(`${connectedUrl}/api/v4/teams/${teamData.id}/channels`, {
+          headers: { Authorization: `Bearer ${connectedToken}` }
+        });
+        if (channelsRes.ok) {
+          const channels = (await channelsRes.json()) as Array<{ id: string; name: string; create_at: number }>;
+          const matching = channels
+            .filter((c) => c.name.startsWith(channelName) || c.name.startsWith('pactroom-api-contracts'))
+            .sort((a, b) => b.create_at - a.create_at);
+          if (matching.length > 0) {
+            channelId = matching[0].id;
+            console.log(`[mattermost-bridge] ✓ Auto-resolved active Switch room '${matching[0].name}' -> ID: ${channelId}`);
+          }
         }
       }
-    } catch (e: any) {
-      console.warn(`[mattermost-bridge] Could not auto-resolve channel ID: ${e.message}`);
     }
+  } catch (e: any) {
+    console.warn(`[mattermost-bridge] Could not auto-resolve channel ID: ${e.message}`);
   }
 
   if (!channelId) {

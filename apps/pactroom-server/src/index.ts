@@ -1,6 +1,7 @@
 import { createServerApp } from './app.js';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { switchBridge } from './protocol/switch-bridge.js';
 import { initMattermostBridge, startMattermostListener } from './protocol/mattermost-bridge.js';
@@ -20,11 +21,31 @@ if (typeof process.loadEnvFile === 'function') {
     try { process.loadEnvFile(serverEnv); } catch {}
   }
 }
-const backendWorkspace = process.env.BACKEND_WORKSPACE || 'workspaces/backend-api';
-const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
-  ? backendWorkspace
-  : path.resolve(rootDir, backendWorkspace);
-const backendSchemasDir = path.resolve(backendWorkspaceDir, 'src/schemas');
+
+function resolveActiveBackendWorkspace(): { backendDir: string; backendSchemasDir: string } {
+  if (process.env.NODE_ENV === 'test') {
+    const backendDir = path.resolve(rootDir, 'workspaces/backend-api');
+    return { backendDir, backendSchemasDir: path.resolve(backendDir, 'src/schemas') };
+  }
+  let ws = process.env.BACKEND_WORKSPACE;
+  if (!ws || ws === 'workspaces/backend-api') {
+    try {
+      const discovered = execSync(
+        `PGPASSWORD=gcUuJleU2slnHIxlKIPzXpOD73xmuGZ3 psql -h 127.0.0.1 -p 60016 -U postgres -d switch -t -A -c "SELECT definition->>'directory' FROM agent_definitions WHERE definition->>'directory' LIKE '%backend%' ORDER BY updated_at DESC LIMIT 1;"`,
+        { timeout: 1500, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
+      ).trim();
+      if (discovered && fs.existsSync(discovered)) {
+        ws = discovered;
+        console.log(`[pactroom-server] ⚡ Auto-discovered active Switch Console workspace: ${ws}`);
+      }
+    } catch {}
+  }
+  const backendDir = ws && path.isAbsolute(ws) ? ws : path.resolve(rootDir, ws || 'workspaces/backend-api');
+  const schemasDir = path.resolve(backendDir, 'src/schemas');
+  return { backendDir, backendSchemasDir: schemasDir };
+}
+
+const { backendDir: backendWorkspaceDir, backendSchemasDir } = resolveActiveBackendWorkspace();
 
 const PORT = process.env.PACTROOM_SERVER_PORT
   ? parseInt(process.env.PACTROOM_SERVER_PORT, 10)

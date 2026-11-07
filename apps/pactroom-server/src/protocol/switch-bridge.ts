@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import {
   diffOpenApiSchemas,
@@ -28,8 +29,43 @@ import { postToSwitchRoomAs, isBridgeAvailable } from './mattermost-bridge.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../../../');
-const backendWorkspace = process.env.BACKEND_WORKSPACE || 'workspaces/backend-api';
-const frontendWorkspace = process.env.FRONTEND_WORKSPACE || 'workspaces/frontend-consumer';
+
+function getDiscoveredWorkspaces(): { backend: string; frontend: string } {
+  if (process.env.NODE_ENV === 'test') {
+    return {
+      backend: 'workspaces/backend-api',
+      frontend: 'workspaces/frontend-consumer'
+    };
+  }
+  let be = process.env.BACKEND_WORKSPACE;
+  let fe = process.env.FRONTEND_WORKSPACE;
+  if (!be || be === 'workspaces/backend-api' || !fe || fe === 'workspaces/frontend-consumer') {
+    try {
+      if (!be || be === 'workspaces/backend-api') {
+        const foundBe = execSync(
+          `PGPASSWORD=gcUuJleU2slnHIxlKIPzXpOD73xmuGZ3 psql -h 127.0.0.1 -p 60016 -U postgres -d switch -t -A -c "SELECT definition->>'directory' FROM agent_definitions WHERE definition->>'directory' LIKE '%backend%' ORDER BY updated_at DESC LIMIT 1;"`,
+          { timeout: 1500, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
+        ).trim();
+        if (foundBe && fs.existsSync(foundBe)) be = foundBe;
+      }
+      if (!fe || fe === 'workspaces/frontend-consumer') {
+        const foundFe = execSync(
+          `PGPASSWORD=gcUuJleU2slnHIxlKIPzXpOD73xmuGZ3 psql -h 127.0.0.1 -p 60016 -U postgres -d switch -t -A -c "SELECT definition->>'directory' FROM agent_definitions WHERE definition->>'directory' LIKE '%frontend%' ORDER BY updated_at DESC LIMIT 1;"`,
+          { timeout: 1500, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
+        ).trim();
+        if (foundFe && fs.existsSync(foundFe)) fe = foundFe;
+      }
+    } catch {}
+  }
+  return {
+    backend: be || 'workspaces/backend-api',
+    frontend: fe || 'workspaces/frontend-consumer'
+  };
+}
+
+const discoveredWorkspaces = getDiscoveredWorkspaces();
+const backendWorkspace = discoveredWorkspaces.backend;
+const frontendWorkspace = discoveredWorkspaces.frontend;
 const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
   ? backendWorkspace
   : path.resolve(rootDir, backendWorkspace);
