@@ -30,8 +30,8 @@ export function getDiscoveredWorkspaces(): ResolvedWorkspaces {
     };
   }
 
-  let be = process.env.BACKEND_WORKSPACE;
-  let fe = process.env.FRONTEND_WORKSPACE;
+  let be = process.env.BACKEND_WORKSPACE || process.env.BACKEND_DIR;
+  let fe = process.env.FRONTEND_WORKSPACE || process.env.FRONTEND_DIR;
 
   const isDefaultOrRelativeBe = !be || be === 'workspaces/backend-api' || be.includes('workspaces/backend-api');
   const isDefaultOrRelativeFe = !fe || fe === 'workspaces/frontend-consumer' || fe.includes('workspaces/frontend-consumer');
@@ -46,6 +46,7 @@ export function getDiscoveredWorkspaces(): ResolvedWorkspaces {
         if (foundBe && fs.existsSync(foundBe)) {
           be = foundBe;
           process.env.BACKEND_WORKSPACE = be;
+          process.env.BACKEND_DIR = be;
         }
       }
       if (isDefaultOrRelativeFe) {
@@ -56,6 +57,7 @@ export function getDiscoveredWorkspaces(): ResolvedWorkspaces {
         if (foundFe && fs.existsSync(foundFe)) {
           fe = foundFe;
           process.env.FRONTEND_WORKSPACE = fe;
+          process.env.FRONTEND_DIR = fe;
         }
       }
     } catch {}

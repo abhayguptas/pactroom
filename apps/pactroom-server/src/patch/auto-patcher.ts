@@ -506,18 +506,28 @@ export async function executeAutoPatch(
     // Option A: Backend Backward-Compatible Adapter
     targetWorkspace = backendWorkspace;
     schemaVersion = 'v1.1.0-adapter';
-    const schemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
+
+    let schemaRel = 'src/schemas/orders.ts';
+    const schemasDir = path.resolve(backendWorkspaceDir, 'src/schemas');
+    if (fs.existsSync(schemasDir)) {
+      const files = fs.readdirSync(schemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
+      if (files.length > 0) {
+        schemaRel = `src/schemas/${files.find((f) => f === 'orders.ts') || files[0]}`;
+      }
+    }
+    const schemaFile = path.resolve(backendWorkspaceDir, schemaRel);
     patchedFiles = [schemaFile];
 
-    // Write the backward-compatible adapter to disk
+    // Write the backward-compatible adapter to disk in the provided backend directory
+    fs.mkdirSync(path.dirname(schemaFile), { recursive: true });
     fs.writeFileSync(schemaFile, BACKEND_OPTION_A_ORDERS_SCHEMA, 'utf-8');
 
     // Run real git diff on backend if git repo exists
     const hasBackendGit = fs.existsSync(path.resolve(backendWorkspaceDir, '.git'));
     const diffRun = hasBackendGit
-      ? await executeChildProcess('git', targetWorkspace, 'git', ['diff', 'src/schemas/orders.ts'], negotiationId)
-      : { passed: true, stdout: 'Backend adapter applied to src/schemas/orders.ts', stderr: '', exitCode: 0, durationMs: 0 };
-    appliedPatchDiff = diffRun.stdout || 'Backend adapter applied to src/schemas/orders.ts';
+      ? await executeChildProcess('git', targetWorkspace, 'git', ['diff', schemaRel], negotiationId)
+      : { passed: true, stdout: `Backend adapter applied to ${schemaRel}`, stderr: '', exitCode: 0, durationMs: 0 };
+    appliedPatchDiff = diffRun.stdout || `Backend adapter applied to ${schemaRel}`;
 
     // Verify backend with real tsc and vitest (if configured)
     const tscRun = await executeChildProcess('tsc', targetWorkspace, 'npx', ['tsc', '--noEmit'], negotiationId);
@@ -611,11 +621,31 @@ export async function executeAutoPatch(
     // Option B: Synchronized Frontend Consumer Patch
     targetWorkspace = frontendWorkspace;
     schemaVersion = 'v2.0.0-synchronized';
-    const schemaFile = path.resolve(frontendWorkspaceDir, 'src/schemas/orders.ts');
-    const componentFile = path.resolve(frontendWorkspaceDir, 'src/components/CheckoutSummary.tsx');
+
+    let feSchemaRel = 'src/schemas/orders.ts';
+    const feSchemasDir = path.resolve(frontendWorkspaceDir, 'src/schemas');
+    if (fs.existsSync(feSchemasDir)) {
+      const files = fs.readdirSync(feSchemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
+      if (files.length > 0) {
+        feSchemaRel = `src/schemas/${files.find((f) => f === 'orders.ts') || files[0]}`;
+      }
+    }
+    const schemaFile = path.resolve(frontendWorkspaceDir, feSchemaRel);
+
+    let componentRel = 'src/components/CheckoutSummary.tsx';
+    const compDir = path.resolve(frontendWorkspaceDir, 'src/components');
+    if (fs.existsSync(compDir)) {
+      const files = fs.readdirSync(compDir).filter((f) => f.endsWith('.tsx'));
+      if (files.length > 0) {
+        componentRel = `src/components/${files.find((f) => f === 'CheckoutSummary.tsx') || files[0]}`;
+      }
+    }
+    const componentFile = path.resolve(frontendWorkspaceDir, componentRel);
     patchedFiles = [schemaFile, componentFile];
 
-    // Write synchronized consumer patch to disk
+    // Write synchronized consumer patch to disk in the provided frontend directory
+    fs.mkdirSync(path.dirname(schemaFile), { recursive: true });
+    fs.mkdirSync(path.dirname(componentFile), { recursive: true });
     fs.writeFileSync(schemaFile, FRONTEND_OPTION_B_ORDERS_SCHEMA, 'utf-8');
     fs.writeFileSync(componentFile, FRONTEND_OPTION_B_CHECKOUT_SUMMARY, 'utf-8');
 

@@ -315,24 +315,110 @@ The ultimate production workflow connecting the high-speed deterministic contrac
 
 ---
 
-### Environment Configuration & `.env.example` Reference
+### Environment Setup & Directory Configuration Guide
 
-PactRoom includes clean `.env.example` templates across every workspace and app in the monorepo:
+PactRoom allows you to target either the bundled demo repositories or **your own real external backend and frontend microservices**.
+
+#### Step 1: Copy Environment Template
+Create your root and server `.env` files from `.env.example`:
+
+```bash
+cp .env.example .env
+cp apps/pactroom-server/.env.example apps/pactroom-server/.env
+```
+
+#### Step 2: Configure Microservice Directory Locations in `.env`
+
+To have PactRoom monitor and patch your own repositories, set the absolute paths in your `.env`:
+
+```env
+# ==============================================================================
+# Microservice Workspaces (Machine A Backend & Machine B Frontend)
+# ==============================================================================
+# Point to your own project directories on disk:
+BACKEND_WORKSPACE=/Users/username/projects/my-backend-service
+FRONTEND_WORKSPACE=/Users/username/projects/my-frontend-consumer
+
+# Note: You can also use BACKEND_DIR and FRONTEND_DIR (matching Switch template parameter names)
+# BACKEND_DIR=/Users/username/projects/my-backend-service
+# FRONTEND_DIR=/Users/username/projects/my-frontend-consumer
+
+# Filesystem Watcher (Machine A Backend): Watches BACKEND_WORKSPACE for uncommitted changes
+ENABLE_FS_WATCHER=true
+```
+
+> [!IMPORTANT]
+> **Deterministic File Modification In Configured Directories**:
+> * **Active Watcher**: When `BACKEND_WORKSPACE` is set, PactRoom's file daemon monitors `${BACKEND_WORKSPACE}/src/schemas` for live code saves.
+> * **Option A (Backend Adapter)**: When human approval is granted in chat for Option A, the patch engine writes the backward-compatible schema directly into `${BACKEND_WORKSPACE}/src/schemas/`.
+> * **Option B (Frontend Synchronized)**: When human approval is granted for Option B, the patch engine writes the synchronized schema and consumer components directly into `${FRONTEND_WORKSPACE}/src/schemas/` and `${FRONTEND_WORKSPACE}/src/components/`.
+> * **Compiler Verification**: Real child processes (`npx tsc --noEmit` and `npx vitest run`) execute directly inside the configured `BACKEND_WORKSPACE` and `FRONTEND_WORKSPACE` paths.
+
+#### Step 3: Switch Console & Mattermost Collaborative Bridge
+
+When using the Switch Console downloaded app, Mattermost runs locally on port `60015` (or `49388`/`8065` depending on port availability):
+
+```env
+# Switch Console / Mattermost Collaborative Room Bridge
+SWITCH_MATTERMOST_URL=http://localhost:60015
+SWITCH_MATTERMOST_TOKEN=gtrp6bar1bfgpgt51g6cywybnr
+SWITCH_CHANNEL_ID=tpdxwefawpggtyu5uyxqo3iz5o
+SWITCH_TEAM_NAME=switch
+SWITCH_CHANNEL_NAME=pactroom-api-contracts
+```
+
+PactRoom automatically detects port `60015`, `49388`, and `8065` and queries Switch Console's database on port `60016` to synchronize active agent workspace directories.
+
+#### Monorepo `.env.example` Reference Matrix:
 
 | File Location | Purpose & Primary Variables |
 | :--- | :--- |
-| `/.env.example` | Root monorepo configuration: ports (3000, 3001, 3002), Switch room IDs, and Mattermost bridge settings. |
+| `/.env.example` | Root monorepo configuration: ports (3000, 3001, 3002), `BACKEND_WORKSPACE`, `FRONTEND_WORKSPACE`, Switch room IDs, and Mattermost bridge settings. |
 | `/apps/pactroom-server/.env.example` | Server engine config, workspace relative paths, Switch bot tokens, and candidate Mattermost ports. |
 | `/apps/pactroom-web/.env.example` | Next.js visual studio config (`NEXT_PUBLIC_PACTROOM_SERVER_URL`, `NEXT_PUBLIC_MATTERMOST_URL`). |
 | `/workspaces/backend-api/.env.example` | Express microservice port (`PORT=3001`) and development settings. |
 | `/workspaces/frontend-consumer/.env.example` | Frontend consumer client config (`PORT=5173`, `BACKEND_API_URL`). |
 
-To configure your local environment:
-```bash
-cp .env.example .env
-cp apps/pactroom-server/.env.example apps/pactroom-server/.env
-```
-All actual `.env` and `.env.*` files are strictly excluded by `.gitignore` to prevent secret leakage.
+All `.env` files are strictly excluded by `.gitignore` to prevent secret leakage.
+
+---
+
+### Step-by-Step Execution Workflow
+
+1. **Install Dependencies**:
+   ```bash
+   pnpm install
+   ```
+
+2. **Configure `.env`**:
+   ```bash
+   cp .env.example .env
+   # Edit BACKEND_WORKSPACE and FRONTEND_WORKSPACE in .env if using custom repos
+   ```
+
+3. **Start the Monorepo**:
+   ```bash
+   pnpm dev
+   ```
+   * **Web Studio**: [http://localhost:3000/studio](http://localhost:3000/studio)
+   * **Landing Page**: [http://localhost:3000](http://localhost:3000)
+   * **Engine & Switch Bridge**: [http://localhost:3002](http://localhost:3002)
+
+4. **Trigger Uncommitted Breaking Change**:
+   * Open `${BACKEND_WORKSPACE}/src/schemas/orders.ts` in your editor.
+   * Modify or remove a field (e.g., refactor `total_amount_cents` into `pricing_breakdown`).
+   * Save the file (`Cmd+S`).
+
+5. **Observe Autonomous Cross-Machine Coordination**:
+   * `@pactroom-watch` detects the save on Machine A, extracts the OpenAPI 3.1 AST, and posts the breaking change diff to `#pactroom-api-contracts`.
+   * `@pactroom-verify` executes real `tsc --noEmit` on Machine B, isolating exact compiler diagnostics (`TS2339`) in consumer components.
+   * `@pactroom-sync` proposes **Option A** vs **Option B** and halts at the **Human Approval Gate** (`auto_approve: false`).
+
+6. **Ratify & Auto-Patch via Chat**:
+   * Type `"Approve Option A"` or `"Approve Option B"` in Mattermost or click approve in the Studio.
+   * The patch engine applies the changes directly into the configured directories, re-runs compiler checks (100% PASS), and logs the decision permanently to SQLite.
+
+---
 
 ### Connecting Your Own Real Repositories & Machines
 
