@@ -256,18 +256,83 @@ If you want the complete 4-quadrant mission control center, live AST OpenAPI 3.1
 3. Open **[http://localhost:3000/studio](http://localhost:3000/studio)**.
 4. **Embedded SQLite Setup (`pactroom.db`)**: 100% automatic and zero-config. When `pnpm dev` starts, `better-sqlite3` creates `pactroom.db` on disk and auto-initializes all tables (`room_decisions`, `contract_negotiations`, `consumer_breakages`, `agent_execution_logs`). You do not need to install, configure, or migrate any database manually.
 
-#### Mode 3: Unified Hybrid Workflow (Engine + Real Switch Room Two-Way Bridge)
-The ultimate production workflow connecting the high-speed contract engine with real Switch rooms:
-1. Start `pactroom-server` (with file watcher active by default on port 3002).
-2. The server automatically initializes the **Mattermost Bridge** (`http://localhost:49388`), linking directly to Switch room `#{team}-api-contracts`.
-3. **Save any schema file on Machine A**:
+#### Mode 3: Unified Hybrid Workflow (Engine + Real Switch Room & Mattermost Two-Way Bridge)
+The ultimate production workflow connecting the high-speed deterministic contract engine with the real Switch Console collaborative room:
+
+```
++--------------------------------------------------------------------------+
+|            SWITCH CONSOLE & MATTERMOST COLLABORATIVE ROOM                |
+|                    (http://localhost:60015 or LAN IP)                    |
+|                      Channel: #pactroom-api-contracts                    |
+|                                                                          |
+|   @pactroom-watch   |  "⚠️ Breaking change: total_amount_cents removed"  |
+|   @pactroom-verify  |  "❌ tsc --noEmit failed: TS2339 on Line 19"       |
+|   @pactroom-sync    |  "⚖️ Paused at Human Gate. Approve Option A or B"  |
+|   Dev 1 / Dev 2     |  "Approve Option A"                                |
+|   @pactroom-sync    |  "🎉 Contract Ratified! Auto-patch applied."       |
++------------------------------------+-------------------------------------+
+                                     ^
+                                     |  Two-Way HTTP & Polling Bridge
+                                     v
++------------------------------------+-------------------------------------+
+|                  PACTROOM LOCAL SERVER & ENGINE                          |
+|                       (http://localhost:3002)                            |
+|                                                                          |
+|  - Real Disk File Watcher (< 600ms debounce on src/schemas/*.ts)        |
+|  - Deterministic AST OpenAPI 3.1 Extractor & RFC 6901 Pointer Diff      |
+|  - Real Subprocess Compiler Runner (tsc --noEmit & vitest run)           |
+|  - Two-Way Chat Listener: Dispatches chat approvals to Auto-Patcher     |
+|  - Immutable SQLite Ledger (pactroom.db: room_decisions, breakages)     |
++--------------------------------------------------------------------------+
+```
+
+1. **Start PactRoom Engine & Bridge**:
+   ```bash
+   pnpm --filter pactroom-server dev
+   ```
+   The server boots on port `3002` and automatically auto-detects and connects to the active Switch Console Mattermost instance:
+   - Primary: `http://localhost:60015` (official Switch Console downloaded macOS app)
+   - Fallback: `http://localhost:49388` or `http://localhost:8065`
+   - Auto-resolves channel `pactroom-api-contracts` (Channel ID: `tpdxwefawpggtyu5uyxqo3iz5o`)
+   - Binds directly to bot personas: `@pactroom-watch`, `@pactroom-verify`, and `@pactroom-sync`
+
+2. **Save Any Schema File in Your Editor (Machine A)**:
+   - Make an uncommitted edit in `workspaces/backend-api/src/schemas/orders.ts` (e.g. replace `total_amount_cents` with `pricing_breakdown`).
    - The filesystem daemon detects the save in **< 600ms**.
-   - `@pactroom/contract-engine` computes OpenAPI 3.1 diffs and tests consumer AST in **< 200ms**.
-   - The engine automatically posts the structured alert and consumer diagnostics directly into your Switch Room!
-4. **Approve directly in Switch Console**:
-   - In Switch Console chat, type `Approve Option A` or `Approve Option B`.
-   - The two-way bridge captures your human approval, executes the automated in-place patch, runs `tsc --noEmit` and `vitest run`, and writes the ratified contract to `pactroom.db`.
-   - The Studio dashboard at `http://localhost:3000/studio` updates simultaneously via SSE streaming.
+   - `@pactroom/contract-engine` extracts the candidate schema shape and diffs against Git HEAD.
+   - `@pactroom-watch` posts the breaking change alert into `#pactroom-api-contracts`.
+   - `@pactroom-verify` runs real `tsc --noEmit` against `workspaces/frontend-consumer` and posts the exact `TS2339` compiler diagnostic error on `CheckoutSummary.tsx:19:23`.
+   - `@pactroom-sync` synthesizes Option A (backward-compatible adapter) vs Option B (frontend consumer migration) and pauses at the Human Approval Gate (`auto_approve: false`).
+
+3. **Approve Directly in Chat (From Any Machine)**:
+   - Leave Switch running on Machine 1.
+   - Any team member (e.g. `abhayakg123@gmail.com` on Machine 1 or `siddhigupta811@gmail.com` on Machine 2 via `http://<MACHINE_1_IP>:60015`) simply types:
+     ```text
+     Approve Option A
+     ```
+   - PactRoom's two-way listener captures the approval, executes the auto-patch engine, verifies that both workspaces pass 100% of `tsc` and `vitest` tests, logs the decision permanently to SQLite (`room_decisions`), and posts the green celebration banner!
+   - Both the Web Studio (`http://localhost:3000/studio`) and the Mattermost room update in real time.
+
+---
+
+### Environment Configuration & `.env.example` Reference
+
+PactRoom includes clean `.env.example` templates across every workspace and app in the monorepo:
+
+| File Location | Purpose & Primary Variables |
+| :--- | :--- |
+| `/.env.example` | Root monorepo configuration: ports (3000, 3001, 3002), Switch room IDs, and Mattermost bridge settings. |
+| `/apps/pactroom-server/.env.example` | Server engine config, workspace relative paths, Switch bot tokens, and candidate Mattermost ports. |
+| `/apps/pactroom-web/.env.example` | Next.js visual studio config (`NEXT_PUBLIC_PACTROOM_SERVER_URL`, `NEXT_PUBLIC_MATTERMOST_URL`). |
+| `/workspaces/backend-api/.env.example` | Express microservice port (`PORT=3001`) and development settings. |
+| `/workspaces/frontend-consumer/.env.example` | Frontend consumer client config (`PORT=5173`, `BACKEND_API_URL`). |
+
+To configure your local environment:
+```bash
+cp .env.example .env
+cp apps/pactroom-server/.env.example apps/pactroom-server/.env
+```
+All actual `.env` and `.env.*` files are strictly excluded by `.gitignore` to prevent secret leakage.
 
 ### Connecting Your Own Real Repositories & Machines
 

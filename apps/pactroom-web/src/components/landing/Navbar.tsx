@@ -89,14 +89,20 @@ export const Navbar: React.FC = () => {
           {/* Right: Switch Status & Black Pill CTA (Lindy Style) */}
           <div className="flex items-center gap-3">
             {/* Live Switch Room Indicator Pill */}
-            <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-neutral-200 text-[11px] font-mono shadow-soft-sm">
+            <a
+              href={process.env.NEXT_PUBLIC_MATTERMOST_URL || 'http://localhost:60015'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-white hover:bg-neutral-50 border border-neutral-200 text-[11px] font-mono shadow-soft-sm transition-colors"
+              title="Open Mattermost Collaborative Room in Switch Console"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
-              <span className="text-neutral-500">Room:</span>
-              <span className="text-emerald-700 font-semibold">#pactflow-api-contracts</span>
-            </div>
+              <span className="text-neutral-500">Switch Room:</span>
+              <span className="text-emerald-700 font-semibold">#pactroom-api-contracts (:60015)</span>
+            </a>
 
             <Link
               href="/studio"

@@ -101,36 +101,42 @@ export const ArchitectureSection: React.FC = () => {
               </div>
 
               <h3 className="text-xl font-sans font-bold text-neutral-900 group-hover:text-orange-700 transition-colors">
-                Multiplexed Switch Room Chamber
+                Multiplexed Switch Room &amp; Mattermost Bridge
               </h3>
               <p className="mt-3 text-neutral-600 text-xs sm:text-sm leading-relaxed">
-                The neutral shared negotiation chamber where agents and human engineers collaborate. Mirrors seamlessly to Slack, Discord, and Mattermost via <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded font-mono">bridge: $first</code>.
+                The neutral shared negotiation chamber where agents and human engineers collaborate. Mirrors live to Switch Console, Mattermost (:60015), Slack, and Discord via <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded font-mono">bridge: $first</code> with dynamic port discovery.
               </p>
 
               <div className="mt-6 space-y-3 font-mono text-xs text-neutral-700 border-t border-orange-100 pt-5">
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Switch Agent Protocol:</strong> Peer-to-peer addressing with <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded">post_message</code> and <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded">send_targeted_message</code>.
+                    <strong>Two-Way Switch Bridge:</strong> Outbound AST diffs stream to Mattermost; inbound human chat approvals trigger live auto-patches.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Switch Agent Protocol:</strong> Peer-to-peer addressing between <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded">@pactroom-watch</code>, <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded">@pactroom-verify</code>, and <code className="text-orange-800 bg-orange-50 px-1 py-0.5 rounded">@pactroom-sync</code>.
                   </span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Strict Human Approval Gate:</strong> <code className="text-amber-800 bg-amber-50 px-1 py-0.5 rounded">auto_approve: false</code> requires dual engineering sign-off.
+                    <strong>Strict Human Approval Gate:</strong> <code className="text-amber-800 bg-amber-50 px-1 py-0.5 rounded">auto_approve: false</code> requires dual engineering sign-off before modifying disk.
                   </span>
                 </div>
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Multi-Bridge Mirror:</strong> Human engineers participate directly from existing Slack or Discord channels.
+                    <strong>Multi-Dev Collaboration:</strong> Both developers join via <code className="text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">http://&lt;IP&gt;:60015</code> in their local browser.
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="mt-8 pt-4 border-t border-neutral-100 text-[11px] font-mono text-orange-700 flex items-center justify-between relative z-10">
-              <span>Channel: #api-contracts in Slack / Teams</span>
+              <span>Channel: #pactroom-api-contracts (Mattermost :60015)</span>
               <MessageSquare className="w-3.5 h-3.5" />
             </div>
           </div>

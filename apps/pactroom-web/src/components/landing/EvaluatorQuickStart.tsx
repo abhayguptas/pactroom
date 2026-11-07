@@ -293,6 +293,30 @@ pnpm run validate:template
             </div>
           </div>
 
+          {/* Live Collaborative Chat Bridge Card */}
+          <div className="mt-6 p-5 rounded-2xl bg-gradient-to-r from-orange-50 via-amber-50 to-emerald-50 border border-orange-200 shadow-soft-sm text-left">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <h4 className="text-sm font-sans font-bold text-neutral-900">
+                  Live Switch Console &amp; Mattermost Collaborative Room Bridge
+                </h4>
+              </div>
+              <a
+                href={process.env.NEXT_PUBLIC_MATTERMOST_URL || 'http://localhost:60015'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-3 py-1 rounded-full border border-emerald-300 transition-colors flex items-center gap-1.5"
+              >
+                <span>Open Mattermost Room (:60015)</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <p className="text-xs text-neutral-600 leading-relaxed">
+              Connect both developers across laptops with zero cloud setup! Machine 1 runs Switch Console; Machine 2 navigates to <code className="bg-white/80 px-1.5 py-0.5 rounded font-mono text-neutral-800">http://&lt;MACHINE_1_IP&gt;:60015</code> and joins <code className="bg-white/80 px-1.5 py-0.5 rounded font-mono text-neutral-800">#pactroom-api-contracts</code>. When Machine 1 saves a breaking change in their editor, <code className="text-sky-800 font-mono font-semibold">@pactroom-watch</code> and <code className="text-emerald-800 font-mono font-semibold">@pactroom-verify</code> post live compiler diagnostics into the room, and typing <strong className="text-neutral-900">&quot;Approve Option A&quot;</strong> in chat ratifies and executes the auto-patch engine!
+            </p>
+          </div>
+
           {/* Interactive Test Walkthrough (What Happens in Studio) */}
           <div className="mt-8 p-6 rounded-2xl bg-white border border-neutral-200 shadow-soft-sm">
             <h4 className="text-sm font-sans font-bold text-neutral-900 mb-3 flex items-center gap-2">

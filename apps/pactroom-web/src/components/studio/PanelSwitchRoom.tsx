@@ -79,18 +79,24 @@ export const PanelSwitchRoom: React.FC<PanelSwitchRoomProps> = ({
               Panel 2 • Switch Room Stream
             </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-200 font-semibold">
-              #pactflow-api-contracts
+              #pactroom-api-contracts
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-[10px] font-mono text-neutral-500">
-          <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+          <a
+            href={process.env.NEXT_PUBLIC_MATTERMOST_URL || 'http://localhost:60015'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-emerald-700 font-semibold hover:underline bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full"
+            title="Open Mattermost Collaborative Room in Switch"
+          >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-            <span>SSE Live</span>
-          </span>
+            <span>Mattermost :60015</span>
+          </a>
           <span>•</span>
-          <span className="text-neutral-600">Slack / Discord</span>
+          <span className="text-neutral-600">Switch Console Bridge</span>
         </div>
       </div>
 
