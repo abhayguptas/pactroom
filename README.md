@@ -622,18 +622,6 @@ flowchart LR
 
 ---
 
-## Submission Checklist
-
-- [x] Track 01 (Best Business Workflow): Solves the problem of uncommitted API breaking changes between backend and frontend developers.
-- [x] Switch Room Template v1: Validated `pactroom.template.yaml` in repository root passing 156 of 156 checks.
-- [x] Passes the Remove-Switch Test: Requires Switch cross-machine room routing to connect uncommitted working trees.
-- [x] Real Implementation: Uses real Express endpoints, real React components, real Git branches, real child processes (`tsc`, `vitest`), and SQLite persistence.
-- [x] Human Approval Gate: Enforces `auto_approve: false` on `{team}-sync`.
-- [x] Built with Wispr Flow: Documents voice-driven prompt entry for the side track.
-- [x] Reproduction: Step-by-step reproduction instructions with passing test suites.
-
----
-
 ## Project & Team Links
 
 - **GitHub Repository**: [https://github.com/abhayguptas/pactroom](https://github.com/abhayguptas/pactroom)
