@@ -7,6 +7,7 @@ import {
   extractAndCompareGitHeadAgainstWorkingTree,
   extractLiveBackendSchema,
   runFrontendContractVerification,
+  scanFrontendConsumerWorkspace,
   OpenApiDocument,
   OpenApiSchemaObject,
   SchemaDiffResult,
@@ -369,7 +370,7 @@ export class SwitchBridge {
    * Inspects uncommitted local changes, compares Git HEAD against working tree,
    * classifies breaking vs non-breaking changes.
    */
-  async runWatchAgent(): Promise<SchemaDiffResult> {
+  async runWatchAgent(changedFile?: string): Promise<SchemaDiffResult> {
     const startTime = Date.now();
     const negotiationId = `neg_${Date.now()}`;
     const now = new Date().toISOString();
@@ -471,12 +472,16 @@ export class SwitchBridge {
       });
       this.activeNegotiation.patches = patches;
 
+      const targetFilePath = changedFile
+        ? path.join(backendWorkspace, 'src/schemas', changedFile)
+        : path.join(backendWorkspace, 'src/schemas/orders.ts');
+
       await this.postRoomMessage(
         `${this.teamSlug}-watch`,
         `${this.teamSlug}-watch (Backend Machine A)`,
         'inspector',
         `⚠️ **Breaking API Change Detected on Machine A**:
-I have analyzed uncommitted changes in \`workspaces/backend-api/src/schemas/orders.ts\`.
+I have analyzed uncommitted changes in \`${targetFilePath}\`.
 - **Breaking Changes**: ${diffResult.breakingCount}
 ${diffResult.changes.map((c) => `  * \`${c.method || 'GET'} ${c.path}\`: ${c.message}`).join('\n')}
 
@@ -563,10 +568,25 @@ Scanning \`workspaces/frontend-consumer\` AST and executing real \`tsc --noEmit\
 
         // Map internal temporary verification fixture to real consumer component on Machine B
         if (displayFileName.includes('__pactroom_fixture_') || displayFileName.includes('.tmp.ts')) {
-          displayFileName = 'src/components/CheckoutSummary.tsx';
-          displayLine = 19;
-          displayColumn = 23;
-          snippet = `18 | }) => {\n19 |   const formattedTotal = formatCurrency(order.total_amount_cents, order.currency_code);\n20 |   const isSettled = order.status === 'settled';`;
+          const missingFieldMatch = diag.message.match(/Property '([^']+)' does not exist/);
+          const targetField = missingFieldMatch ? missingFieldMatch[1] : '';
+          let mappedRef: any = null;
+          if (targetField) {
+            const scanRes = scanFrontendConsumerWorkspace(frontendWorkspaceDir, targetField);
+            mappedRef = scanRes.components[0] || scanRes.calls[0] || scanRes.hooks[0] || scanRes.interfaces[0];
+          }
+
+          if (mappedRef) {
+            displayFileName = path.relative(frontendWorkspaceDir, mappedRef.filePath);
+            displayLine = mappedRef.line;
+            displayColumn = mappedRef.column;
+            snippet = mappedRef.contextSnippet;
+          } else {
+            displayFileName = 'src/components/CheckoutSummary.tsx';
+            displayLine = 19;
+            displayColumn = 23;
+            snippet = `18 | }) => {\n19 |   const formattedTotal = formatCurrency(order.total_amount_cents, order.currency_code);\n20 |   const isSettled = order.status === 'settled';`;
+          }
         }
 
         try {

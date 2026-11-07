@@ -57,7 +57,7 @@ app.listen(PORT, async () => {
         isProcessing = true;
         console.log(`[pactroom-watcher] Real disk edit detected in ${filename}. Invoking @watch agent...`);
         try {
-          await switchBridge.runWatchAgent();
+          await switchBridge.runWatchAgent(filename);
         } catch (err) {
           console.error('[pactroom-watcher] Error in automatic watch execution:', err);
         } finally {

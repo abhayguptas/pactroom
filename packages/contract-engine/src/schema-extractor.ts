@@ -147,11 +147,19 @@ export function extractLiveBackendSchema(backendWorkspacePath: string): Extracte
 
   const endpoints: ExtractedEndpoint[] = [];
 
-  if (fs.existsSync(schemasDir)) {
-    const files = fs.readdirSync(schemasDir).filter((f) => f.endsWith('.ts'));
+  let scanDir = schemasDir;
+  if (!fs.existsSync(scanDir)) {
+    const srcDir = path.resolve(backendWorkspacePath, 'src');
+    if (fs.existsSync(srcDir)) {
+      scanDir = srcDir;
+    }
+  }
+
+  if (fs.existsSync(scanDir)) {
+    const files = fs.readdirSync(scanDir).filter((f) => f.endsWith('.ts'));
 
     for (const file of files) {
-      const fullPath = path.join(schemasDir, file);
+      const fullPath = path.join(scanDir, file);
       sourceFilesScanned.push(fullPath);
       const content = fs.readFileSync(fullPath, 'utf-8');
       const fileSchemas = extractZodSchemasFromSource(content, file);
@@ -311,6 +319,31 @@ export function extractLiveBackendSchema(backendWorkspacePath: string): Extracte
     }
   };
 
+  // Dynamically generate OpenAPI endpoints for any arbitrary custom schemas discovered
+  if (openApiDoc.components?.schemas) {
+    for (const [schemaName, schemaObj] of Object.entries(openApiDoc.components.schemas)) {
+      const pathSlug = schemaName.replace(/Schema$/i, '').toLowerCase();
+      const routePath = `/api/v1/${pathSlug}`;
+      if (!openApiDoc.paths[routePath]) {
+        openApiDoc.paths[routePath] = {
+          get: {
+            summary: `Get ${schemaName}`,
+            responses: {
+              '200': {
+                description: 'Successful response',
+                content: {
+                  'application/json': {
+                    schema: schemaObj
+                  }
+                }
+              }
+            }
+          }
+        };
+      }
+    }
+  }
+
   return {
     version: openApiDoc.info.version,
     openApiDoc,
@@ -352,7 +385,7 @@ export function extractAndCompareGitHeadAgainstWorkingTree(backendWorkspacePath:
   let gitDiffOutput = '';
   let isDirty = false;
   try {
-    gitDiffOutput = execSync('git diff HEAD -- src/schemas', {
+    gitDiffOutput = execSync('git diff HEAD -- src', {
       cwd: backendWorkspacePath,
       encoding: 'utf-8'
     });
@@ -361,9 +394,33 @@ export function extractAndCompareGitHeadAgainstWorkingTree(backendWorkspacePath:
     isDirty = false;
   }
 
-  // 3. Extract Git HEAD schema
+  // 3. Extract Git HEAD schema dynamically for any discovered schema files
   const headSchemas: Record<string, OpenApiSchemaObject> = {};
-  const schemaFiles = ['src/schemas/orders.ts', 'src/schemas/users.ts', 'src/schemas/billing.ts'];
+  const schemaFiles = new Set<string>();
+
+  const schemasDir = path.resolve(backendWorkspacePath, 'src/schemas');
+  if (fs.existsSync(schemasDir)) {
+    for (const f of fs.readdirSync(schemasDir)) {
+      if (f.endsWith('.ts')) schemaFiles.add(`src/schemas/${f}`);
+    }
+  }
+
+  const srcDir = path.resolve(backendWorkspacePath, 'src');
+  if (fs.existsSync(srcDir)) {
+    for (const f of fs.readdirSync(srcDir)) {
+      if (f.endsWith('.ts')) schemaFiles.add(`src/${f}`);
+    }
+  }
+
+  try {
+    const diffFiles = execSync('git diff --name-only HEAD -- src', {
+      cwd: backendWorkspacePath,
+      encoding: 'utf-8'
+    }).split('\n').map((s) => s.trim()).filter((s) => s.endsWith('.ts'));
+    for (const df of diffFiles) {
+      schemaFiles.add(df);
+    }
+  } catch (e) {}
 
   for (const relFile of schemaFiles) {
     const headContent = readCommittedGitHeadFile(backendWorkspacePath, relFile);
@@ -378,17 +435,30 @@ export function extractAndCompareGitHeadAgainstWorkingTree(backendWorkspacePath:
 
   if (Object.keys(headSchemas).length > 0) {
     headDoc.components = { schemas: headSchemas };
-    if (headSchemas['OrderSchema']) {
-      const resp = headDoc.paths?.['/api/orders']?.get?.responses?.['200'];
-      const jsonSchema = resp?.content?.['application/json']?.schema;
-      if (jsonSchema?.properties?.['orders']?.items) {
-        jsonSchema.properties['orders'].items = headSchemas['OrderSchema'];
-      }
-    }
-    if (headSchemas['OrderResponseSchema']) {
-      const resp = headDoc.paths?.['/api/v1/orders/{id}']?.get?.responses?.['200'];
-      if (resp?.content?.['application/json']) {
-        resp.content['application/json'].schema = headSchemas['OrderResponseSchema'];
+    for (const [schemaName, schemaObj] of Object.entries(headSchemas)) {
+      const pathSlug = schemaName.replace(/Schema$/i, '').toLowerCase();
+      const routePath = `/api/v1/${pathSlug}`;
+      if (!headDoc.paths[routePath]) {
+        headDoc.paths[routePath] = {
+          get: {
+            summary: `Get ${schemaName}`,
+            responses: {
+              '200': {
+                description: 'Successful response',
+                content: {
+                  'application/json': {
+                    schema: schemaObj
+                  }
+                }
+              }
+            }
+          }
+        };
+      } else {
+        const resp = headDoc.paths[routePath]?.get?.responses?.['200'];
+        if (resp?.content?.['application/json']) {
+          resp.content['application/json'].schema = schemaObj;
+        }
       }
     }
   }
