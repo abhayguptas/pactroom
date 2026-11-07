@@ -45,6 +45,8 @@ export interface NegotiationState {
   chosenOption?: 'OPTION_A' | 'OPTION_B';
   breakingCount: number;
   breakagesCount: number;
+  diffSummary?: string;
+  changedFile?: string;
 }
 
 // Stable V1 Baseline OpenAPI Spec
@@ -451,6 +453,10 @@ export class SwitchBridge {
 
     if (diffResult.hasBreakingChanges) {
       this.activeNegotiation.status = 'BREAKING_FOUND';
+      this.activeNegotiation.diffResult = diffResult;
+      this.activeNegotiation.breakingCount = diffResult.breakingCount;
+      this.activeNegotiation.changedFile = changedFile;
+      this.activeNegotiation.diffSummary = `Detected ${diffResult.breakingCount} breaking changes on uncommitted branch.`;
       console.log(`[pactroom-watch] ⚠️ Found ${diffResult.breakingCount} breaking change(s) in schema!`);
       diffResult.changes.forEach((c) => {
         console.log(`[pactroom-watch]   - ${c.method || 'GET'} ${c.path}: ${c.message}`);
@@ -727,7 +733,7 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
    * Synthesizes concrete resolution plan (Option A vs Option B) and stops at Human Gate.
    */
   async runSyncAgent(): Promise<void> {
-    const { backend: backendWorkspace, frontend: frontendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
+    const { backend: backendWorkspace, frontend: frontendWorkspace, backendDir: backendWorkspaceDir, frontendDir: frontendWorkspaceDir } = getDiscoveredWorkspaces();
     const negotiationId = this.activeNegotiation?.id || 'neg_default';
     const now = new Date().toISOString();
 
@@ -756,6 +762,11 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
 
     // Dynamically query actual broken files on frontend from verification run
     let frontendTargetStr = '';
+    const changes = this.activeNegotiation?.diffResult?.changes || [];
+    const touchesTotalAmount = changes.some(
+      (c) => (c.fieldPath && c.fieldPath.includes('total_amount_cents')) || (c.message && c.message.includes('total_amount_cents'))
+    );
+
     try {
       const rows = sqlite.prepare('SELECT DISTINCT file_path FROM consumer_breakages WHERE negotiation_id = ?').all(negotiationId) as { file_path: string }[];
       const files = rows.map((r) => r.file_path).filter(Boolean);
@@ -764,11 +775,23 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
       }
     } catch (e) {}
     if (!frontendTargetStr) {
-      frontendTargetStr = `\`${path.join(frontendWorkspace, 'src/schemas/orders.ts')}\` & \`${path.join(frontendWorkspace, 'src/components/CheckoutSummary.tsx')}\``;
-    }
+      let feSchemaRel = 'src/schemas/orders.ts';
+      const feSchemasDir = path.resolve(frontendWorkspaceDir, 'src/schemas');
+      if (fs.existsSync(feSchemasDir)) {
+        const files = fs.readdirSync(feSchemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
+        if (files.length > 0) {
+          feSchemaRel = `src/schemas/${files.find((f) => f === 'orders.ts') || files[0]}`;
+        }
+      }
+      const feSchemaPath = path.join(frontendWorkspace, feSchemaRel);
+      const checkoutSummaryPath = path.join(frontendWorkspace, 'src/components/CheckoutSummary.tsx');
 
-    // Dynamically generate strategy and impact descriptions from actual detected changes
-    const changes = this.activeNegotiation?.diffResult?.changes || [];
+      if (touchesTotalAmount && fs.existsSync(checkoutSummaryPath)) {
+        frontendTargetStr = `\`${feSchemaPath}\` & \`${checkoutSummaryPath}\``;
+      } else {
+        frontendTargetStr = `\`${feSchemaPath}\``;
+      }
+    }
     const removedFields = changes
       .filter((c) => c.category === 'PROPERTY_REMOVED')
       .map((c) => c.fieldPath.split('.').pop() || c.fieldPath);
@@ -865,8 +888,18 @@ Executing real Auto-Patch Engine...`
     );
 
     console.log(`[pactroom-sync] 🎯 Human approval granted for ${decisionType} by ${approvedByBackend} & ${approvedByFrontend}! Executing auto-patch...`);
-    // Execute real auto-patch
-    const result = await executeAutoPatch(decisionType, negotiationId, approvedByBackend, approvedByFrontend);
+    // Execute real dynamic auto-patch using Codex AI agent or dynamic AST engine
+    const result = await executeAutoPatch(
+      decisionType,
+      negotiationId,
+      approvedByBackend,
+      approvedByFrontend,
+      {
+        breakingChanges: this.activeNegotiation?.diffResult?.changes,
+        diffSummary: this.activeNegotiation?.diffSummary,
+        changedFile: this.activeNegotiation?.changedFile
+      }
+    );
     console.log(`[pactroom-sync] ✓ Auto-patch executed: ${result.patchedFiles.length} file(s) updated. Re-verifying workspace...`);
 
     // Clear resolved breakages in SQLite
