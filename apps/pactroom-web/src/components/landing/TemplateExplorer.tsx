@@ -161,7 +161,7 @@ room:
     Operational Conventions:
     1. One-at-a-time contract negotiation: Do not start negotiating a new schema revision while an active diff is under review.
     2. Zero guessing: All diffs and error reports must be backed by real files on disk and real child process runs.
-    3. Mandatory Human Approval Gate: No agent may write code patches, edit schemas, or merge branches without explicit human sign-off (e.g. 'Approved Option A' or 'Approved Option B'). A single human approval immediately satisfies the gate; dual sign-offs are not required.
+    3. Mandatory Human Approval Gate: No agent may write code patches, edit schemas, or merge branches without explicit human sign-off (e.g. 'Approve Option A' or 'Approve Option B'). A single human approval immediately satisfies the gate; dual sign-offs are not required.
     4. Verified Green Invariant: A negotiation is only concluded when both backend and frontend achieve a 0-error TypeScript compilation and passing Vitest test suites.
 
 kickoff: |

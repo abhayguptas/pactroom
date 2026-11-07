@@ -63,7 +63,7 @@ export const EvaluatorQuickStart: React.FC = () => {
                 Free Switch Room Template
               </h3>
               <p className="text-xs text-neutral-500 font-mono mb-4">
-                pactroom.template.yaml (154 lines • Switch v1 specification)
+                pactroom.template.yaml (155 lines • Switch v1 specification)
               </p>
               <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed mb-6">
                 Designed for teams who run Switch Console and want native multi-agent orchestration without installing any external server or dependencies.

@@ -59,7 +59,7 @@ PactRoom coordinates API contract changes across machines using a shared Switch 
 
 | Component | What Is It? | How It Runs | Best For |
 | :--- | :--- | :--- | :--- |
-| **Switch Room Template** (`pactroom.template.yaml`) | Declarative v1.0 Switch template (145 lines, 168/168 checks passed) defining 3 agents (`{team}-watch`, `{team}-verify`, `{team}-sync`) and room rules (`auto_approve: false`). | Zero external server required. Import directly into Switch Console or run via `switch create room -t pactroom.template.yaml`. | Teams already using Switch Console who want native multi-agent orchestration backed by CLI agents (OpenCode, Codex, Claude Code, Cursor). |
+| **Switch Room Template** (`pactroom.template.yaml`) | Declarative v1.0 Switch template (155 lines, 168/168 checks passed) defining 3 agents (`{team}-watch`, `{team}-verify`, `{team}-sync`) and room rules (`auto_approve: false`). | Zero external server required. Import directly into Switch Console or run via `switch create room -t pactroom.template.yaml`. | Teams already using Switch Console who want native multi-agent orchestration backed by CLI agents (OpenCode, Codex, Claude Code, Cursor). |
 | **Full PactRoom Platform** (Monorepo) | Deterministic AST OpenAPI 3.1 engine (< 14ms diffing), 4-panel visual studio (`localhost:3000/studio`), real child-process compiler harness (`tsc` + `vitest`), and self-initializing SQLite (`pactroom.db`). | Clone monorepo and run `pnpm dev`. Concurrently boots Studio (3000), Engine (4000), and sample Backend API (3002). | Evaluators and engineering leads who want a full visual control plane, automated AST code patching, and immutable audit logs. |
 
 ---
@@ -457,42 +457,52 @@ To mirror the Switch room into your team chat:
 ### Agents Defined in the Template:
 
 ```yaml
-# Extract from pactroom.template.yaml
+# Extract from pactroom.template.yaml (Switch v1 specification)
 agents:
   # Machine A: Backend Contract Watcher
-  - name: '{team}-watch'
+  - name: "{team}-watch"
     addressing: anyone
-    location: '{backend_location}'
-    directory: '{backend_dir}'
-    description: 'Inspects uncommitted local backend changes and identifies breaking contract diffs.'
-    instructions: >
-      Extract live OpenAPI 3.1 schemas from uncommitted local DTOs. Diff against Git HEAD.
-      Categorize breaking changes (removed fields, type narrowing, renamed properties).
-      Notify @{team}-verify with candidate contract JSON.
+    provider: "{provider}"
+    machine: "{machine}"
+    location: "{backend_location}"
+    directory: "{backend_dir}"
+    instructions: |
+      Inspect uncommitted local backend changes using `git status` and `git diff HEAD`
+      across schema, model, serializer, and route definition files.
+      Summarize modified schemas in one line. Classify whether changes are backward-compatible
+      or breaking. If breaking, address {team}-verify in chat with the exact diff and payload shape.
 
   # Machine B: Frontend Consumer Verifier
-  - name: '{team}-verify'
+  - name: "{team}-verify"
     addressing: owner-agents
-    location: '{frontend_location}'
-    directory: '{frontend_dir}'
-    description: 'Runs real tsc --noEmit and vitest against candidate schemas on Machine B.'
-    instructions: >
-      Execute real tsc --noEmit child process on Machine B. Capture TS2339 errors, exact line
-      numbers, and code snippets. Report diagnostics to @{team}-sync.
+    provider: "{provider}"
+    machine: "{machine}"
+    location: "{frontend_location}"
+    directory: "{frontend_dir}"
+    instructions: |
+      Review proposed contract diffs reported by {team}-watch.
+      Search the local frontend codebase for components, API clients, and hooks consuming the endpoint.
+      Execute real child process verification: run `npx tsc --noEmit` and the frontend test suite.
+      Report exact breaking files, lines, and TS diagnostic errors (TS2339). Tag @{team}-sync.
 
   # Cross-Machine Arbitrator and Patch Synthesizer
-  - name: '{team}-sync'
+  - name: "{team}-sync"
     addressing: owner-agents
-    auto_approve: false  # Human approval gate
-    location: '{backend_location}'
-    description: 'Synthesizes Option A vs Option B resolution plans and applies patches after human approval.'
-    instructions: >
-      Synthesize Option A (Backend Adapter) vs Option B (Frontend Migration).
-      Halt at the human approval gate. Never modify files without explicit human sign-off.
-      Apply approved patch and record binding room decision.
+    auto_approve: false  # Strictly enforced human approval gate
+    provider: "{provider}"
+    machine: "{machine}"
+    location: "{backend_location}"
+    directory: "{backend_dir}"
+    instructions: |
+      Synthesize concrete dynamic resolution plans:
+      - Option A: Backend Backward-Compatible Adapter (zero frontend breakage).
+      - Option B: Frontend Synchronized Consumer Patch (modern schema migration).
+      STOP AND WAIT AT THE HUMAN APPROVAL GATE. Never modify files without explicit human sign-off.
+      Upon receiving human approval in chat, apply the patch, re-verify with `tsc --noEmit`,
+      and record the ratified decision.
 ```
 
-### Template Validation (156 Checks Passed):
+### Template Validation (168 / 168 Checks Passed):
 
 The repository includes a validation script (`scripts/validate-switch-template.ts`) that verifies compliance with Switch 1.0 template requirements:
 
@@ -503,10 +513,63 @@ pnpm validate:template
 Result:
 ```text
 ================================================================
-Switch Template Validation Summary: 156 / 156 Checks Passed
+Switch Template Validation Summary: 168 / 168 Checks Passed
 ================================================================
-100% SWITCH 1.0 TEMPLATE COMPLIANCE CONFIRMED. ZERO ERRORS.
+✓ 100% SWITCH 1.0 TEMPLATE COMPLIANCE CONFIRMED. ZERO ERRORS.
 ```
+
+---
+
+### Running the PactRoom Server Alongside the Switch Template: How Does It Work?
+
+A common question from engineers and mentors is:  
+> *"If I import `pactroom.template.yaml` into Switch Console, but also run `pactroom-server` locally, how do they work together? Am I limited to what's in the YAML file?"*
+
+The answer is **No, you are not limited to just the YAML file**. The Switch Template and the PactRoom Platform are designed to work together symbiotically:
+
+```
++---------------------------------------------------------------------------------------+
+|                               SWITCH CONSOLE ROOM                                     |
+|             (Declarative Governance, Room Permissions, & Multi-Agent Chat)            |
+|                                                                                       |
+|   - Defined by pactroom.template.yaml                                                 |
+|   - Coordinates {team}-watch, {team}-verify, and {team}-sync across machines         |
+|   - Enforces the Human Approval Gate (auto_approve: false) in chat                    |
+|   - Backed by LLM coding agents (Codex, OpenCode, Claude Code, Cursor)               |
++-------------------------------------------+-------------------------------------------+
+                                            ^
+                         Two-Way Bridge & Live Event Stream
+                                            v
++-------------------------------------------+-------------------------------------------+
+|                            PACTROOM LOCAL ENGINE & STUDIO                             |
+|               (Deterministic AST Compiler, SQLite Ledger, & File Watcher)             |
+|                                                                                       |
+|   - < 14ms Deterministic AST Engine: RFC 6901 JSON pointer diffing on real files     |
+|   - Pre-Commit File Watcher: Detects Cmd+S saves in < 600ms and wakes the room         |
+|   - Process Runner: Sandboxed child-process runner for `tsc --noEmit` & `vitest`      |
+|   - Dynamic Auto-Patcher: Invokes Codex CLI or dynamic AST in-place mutators          |
+|   - Persistent SQLite Ledger: Stores microsecond decision history in pactroom.db       |
+|   - Visual Mission Control: 4-quadrant real-time web studio at http://localhost:3000/studio |
++---------------------------------------------------------------------------------------+
+```
+
+#### What each layer handles:
+
+1. **The Switch Room Template (`pactroom.template.yaml`)**:
+   - **Role**: Declarative Multi-Agent Topology & Governance.
+   - **What it provides**: Declares who the agents are, their physical directories (`backend_dir`, `frontend_dir`), addressing rules, and the strict human approval gate policy (`auto_approve: false`).
+   - **Standalone Capability**: If an engineer chooses not to run `pactroom-server`, the Switch template works completely autonomously. The Switch Console AI agents (e.g. Codex) read git diffs, execute compiler checks, and apply code patches directly.
+
+2. **The PactRoom Server (`apps/pactroom-server`) & Visual Studio (`apps/pactroom-web`)**:
+   - **Role**: High-Speed AST Engine, Continuous Watcher, Immutable Audit Ledger, & Visual UI.
+   - **What it provides when running concurrently**:
+     - **Instant Pre-commit Detection**: The filesystem watcher (`fs.watch`) detects edits in `< 600ms` without needing a user to manually prompt an agent.
+     - **Deterministic AST Diffing**: Computes exact OpenAPI 3.1 contract differences in `< 14ms`, eliminating LLM hallucinations about schema types.
+     - **Persistent SQLite Audit Ledger (`pactroom.db`)**: Every human approval ("Approve Option A" by Alex, "Approve Option B" by Sam), execution runtime, and patch diff is permanently recorded with microsecond timestamps in `room_decisions`.
+     - **Real-Time Live Visualizer (`/studio`)**: Visualizes the negotiation across a 4-panel dashboard with live SSE streaming (`/api/events`), giving engineering leads full visual control.
+     - **Two-Way Chat Synchronization**: The server bridges directly into the Switch room via Mattermost REST APIs (`http://localhost:60015`), posting AST diagnostics and listening for room approvals to trigger verified auto-patches.
+
+By combining both, you get the best of both worlds: **Switch's cross-machine agent collaboration and human-in-the-loop governance**, powered by **PactRoom's sub-14ms deterministic AST compiler engine, SQLite persistence, and visual mission control**.
 
 ---
 
