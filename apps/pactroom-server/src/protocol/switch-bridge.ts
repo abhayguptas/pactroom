@@ -473,18 +473,27 @@ export class SwitchBridge {
         negotiationId
       );
 
-      // Generate suggested patches dynamically
+      let targetFilePath = path.join(backendWorkspaceDir, 'src/schemas/orders.ts');
+      if (changedFile) {
+        if (path.isAbsolute(changedFile)) {
+          targetFilePath = changedFile;
+        } else if (fs.existsSync(path.resolve(backendWorkspaceDir, changedFile))) {
+          targetFilePath = path.resolve(backendWorkspaceDir, changedFile);
+        } else if (fs.existsSync(path.resolve(backendWorkspaceDir, 'src/schemas', changedFile))) {
+          targetFilePath = path.resolve(backendWorkspaceDir, 'src/schemas', changedFile);
+        } else {
+          targetFilePath = path.resolve(backendWorkspaceDir, changedFile);
+        }
+      }
+
+      // Generate suggested patches dynamically based on detected changes
       const patches = generateMigrationPatches(diffResult.changes, {
         frontendWorkspace,
         backendWorkspace,
-        frontendZodFilePath: path.join(frontendWorkspace, 'src/schemas/orders.ts'),
+        frontendZodFilePath: path.join(frontendWorkspace, 'src/schemas', path.basename(targetFilePath)),
         backendRouterFilePath: path.join(backendWorkspace, 'src/routes/v1.ts')
       });
       this.activeNegotiation.patches = patches;
-
-      const targetFilePath = changedFile
-        ? path.join(backendWorkspace, 'src/schemas', changedFile)
-        : path.join(backendWorkspace, 'src/schemas/orders.ts');
 
       await this.postRoomMessage(
         `${this.teamSlug}-watch`,
@@ -996,7 +1005,14 @@ Cross-machine contracts are now synchronized and clean.`
 
   async resetAllWorkspacesToBaseline(): Promise<boolean> {
     const { backend: backendWorkspace, backendDir: backendWorkspaceDir, frontendDir: frontendWorkspaceDir } = getDiscoveredWorkspaces();
-    // 1. Reset backend workspace to clean baseline
+    
+    // Never overwrite or reset user-provided repositories! Only reset internal demo folders.
+    const isInternalDemo = backendWorkspaceDir.endsWith('project/workspaces/backend-api') ||
+                           backendWorkspaceDir.endsWith('workspaces/backend-api');
+    if (!isInternalDemo) {
+      console.log(`[switch-bridge] Preserving user custom workspace at ${backendWorkspaceDir} (skipping baseline reset).`);
+      return true;
+    }
     const backendResetScript = path.resolve(backendWorkspaceDir, 'scripts/reset-baseline.ts');
     if (fs.existsSync(backendResetScript)) {
       await executeChildProcess('node', backendWorkspace, 'npx', ['tsx', 'scripts/reset-baseline.ts']);

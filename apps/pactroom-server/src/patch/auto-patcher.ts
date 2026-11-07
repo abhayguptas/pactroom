@@ -79,6 +79,96 @@ function runCodexAgentPatch(workdir: string, prompt: string): { success: boolean
 }
 
 /**
+ * Helper to make any Zod property definition optional in-place.
+ * Matches single-line and multi-line chained definitions:
+ *   field: z.string().openapi(...), -> field: z.string().openapi(...).optional(),
+ */
+function makeFieldOptionalInZod(code: string, field: string): string {
+  const regex = new RegExp(`(^|\\n)([\\t ]*)(${field}\\s*:\\s*)([\\s\\S]*?)(,\\s*(?:\\/\\/.*)?\\n)`, 'g');
+  return code.replace(regex, (match, prefix, indent, propName, expr, suffix) => {
+    if (expr.includes('.optional()')) return match;
+    return `${prefix}${indent}${propName}${expr.trimEnd()}.optional()${suffix}`;
+  });
+}
+
+/**
+ * Dynamically resolves target schema file in a workspace without hardcoding.
+ */
+function resolveTargetFile(
+  workdir: string,
+  preferredSubdir: string,
+  changedFileHint?: string,
+  breakingChanges: any[] = []
+): { fullPath: string; relPath: string } {
+  if (changedFileHint) {
+    const candidatePaths = [
+      path.isAbsolute(changedFileHint) ? changedFileHint : path.resolve(workdir, changedFileHint),
+      path.resolve(workdir, preferredSubdir, path.basename(changedFileHint)),
+      path.resolve(workdir, 'src', path.basename(changedFileHint))
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        return { fullPath: p, relPath: path.relative(workdir, p) };
+      }
+    }
+  }
+
+  const targetDir = path.resolve(workdir, preferredSubdir);
+  if (fs.existsSync(targetDir)) {
+    const files = fs.readdirSync(targetDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts'));
+    if (files.length > 0) {
+      for (const change of breakingChanges) {
+        const hint = (change.path?.match(/api\/v1\/([a-zA-Z0-9_]+)/i)?.[1] || change.fieldPath || '').toLowerCase();
+        if (hint) {
+          const match = files.find((f) => f.toLowerCase().includes(hint) || hint.includes(f.replace('.ts', '').toLowerCase()));
+          if (match) {
+            const fullPath = path.resolve(targetDir, match);
+            return { fullPath, relPath: path.relative(workdir, fullPath) };
+          }
+        }
+      }
+      if (changedFileHint) {
+        const base = path.basename(changedFileHint).toLowerCase();
+        const match = files.find((f) => f.toLowerCase() === base);
+        if (match) {
+          const fullPath = path.resolve(targetDir, match);
+          return { fullPath, relPath: path.relative(workdir, fullPath) };
+        }
+      }
+      const first = files[0];
+      const fullPath = path.resolve(targetDir, first);
+      return { fullPath, relPath: path.relative(workdir, fullPath) };
+    }
+  }
+
+  const defaultRel = path.join(preferredSubdir, 'orders.ts');
+  return { fullPath: path.resolve(workdir, defaultRel), relPath: defaultRel };
+}
+
+/**
+ * Searches consumer components in src/components for usages of removed fields.
+ */
+function findAffectedConsumerComponents(workdir: string, removedFields: string[]): string[] {
+  const compDir = path.resolve(workdir, 'src/components');
+  if (!fs.existsSync(compDir) || removedFields.length === 0) return [];
+  const affected: string[] = [];
+  try {
+    const files = fs.readdirSync(compDir).filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'));
+    for (const f of files) {
+      const fullPath = path.resolve(compDir, f);
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      for (const field of removedFields) {
+        if (content.includes(`.${field}`) || content.includes(`['${field}']`) || content.includes(`["${field}"]`)) {
+          affected.push(fullPath);
+          break;
+        }
+      }
+    }
+  } catch {}
+  return affected;
+}
+
+/**
  * Dynamic AST Schema Patcher: targeted modifications directly on existing files on disk.
  * Never overwrites files with hardcoded demo templates!
  */
@@ -106,16 +196,43 @@ function applyDynamicAstPatch(
       c.message?.includes('added')
   );
 
-  const touchesTotalAmount = breakingChanges.some(
-    (c) =>
-      (c.fieldPath && c.fieldPath.includes('total_amount_cents')) ||
-      (c.message && c.message.includes('total_amount_cents')) ||
-      (c.impactSummary && c.impactSummary.includes('total_amount_cents'))
-  );
-
   if (decisionType === 'OPTION_A') {
     // Option A: Backend Backward-Compatible Adapter
     for (const change of removedChanges) {
+      const field = change.fieldPath?.split('.').pop() || change.fieldPath;
+      if (!field) continue;
+
+      if (code.includes(`${field}:`)) {
+        code = makeFieldOptionalInZod(code, field);
+      } else {
+        const schemaMatch = change.path?.match(/api\/v1\/([a-zA-Z0-9_]+)/i) || change.fieldPath?.match(/^([a-zA-Z0-9_]+)/);
+        const schemaHint = schemaMatch ? schemaMatch[1].toLowerCase() : '';
+
+        const objRegex = /(export const ([a-zA-Z0-9_]+) = z[\s\S]*?\.object\(\{)([\s\S]*?)(\}\))/g;
+        let replaced = false;
+        code = code.replace(objRegex, (match, prefix, name, body, suffix) => {
+          if (!replaced && (!schemaHint || name.toLowerCase().includes(schemaHint))) {
+            replaced = true;
+            return `${prefix}\n    // Adapter fallback for legacy consumers\n    ${field}: z.any().optional(),${body}${suffix}`;
+          }
+          return match;
+        });
+        if (!replaced) {
+          code = code.replace(/(\.object\(\{)/, `$1\n    // Adapter fallback\n    ${field}: z.any().optional(),`);
+        }
+      }
+    }
+  } else {
+    // Option B: Synchronized Frontend Consumer Patch
+    // 1. Make removed legacy fields optional in frontend
+    for (const change of removedChanges) {
+      const field = change.fieldPath?.split('.').pop() || change.fieldPath;
+      if (!field || !code.includes(`${field}:`)) continue;
+      code = makeFieldOptionalInZod(code, field);
+    }
+
+    // 2. Add newly added fields to the matching frontend schema
+    for (const change of addedChanges) {
       const field = change.fieldPath?.split('.').pop() || change.fieldPath;
       if (!field || code.includes(`${field}:`)) continue;
 
@@ -127,72 +244,7 @@ function applyDynamicAstPatch(
       code = code.replace(objRegex, (match, prefix, name, body, suffix) => {
         if (!replaced && (!schemaHint || name.toLowerCase().includes(schemaHint))) {
           replaced = true;
-          return `${prefix}\n    // Adapter fallback for legacy consumers\n    ${field}: z.any().optional(),${body}${suffix}`;
-        }
-        return match;
-      });
-      if (!replaced) {
-        code = code.replace(/(\.object\(\{)/, `$1\n    // Adapter fallback\n    ${field}: z.any().optional(),`);
-      }
-    }
-
-    const orderStatusMatch = code.match(/OrderStatusEnum = z\.enum\(\[\s*([\s\S]*?)\s*\]\)/);
-    if (orderStatusMatch && !orderStatusMatch[1].includes("'completed'")) {
-      code = code.replace(
-        /OrderStatusEnum = z\.enum\(\[\s*([\s\S]*?)\s*\]\)/,
-        (_match, items) => `OrderStatusEnum = z.enum([\n  ${items.trim()},\n  'completed'\n])`
-      );
-    }
-  } else {
-    // Option B: Synchronized Frontend Consumer Patch
-    // Special handling for total_amount_cents -> pricing_breakdown
-    if (touchesTotalAmount && code.includes('OrderResponseSchema')) {
-      code = code.replace(
-        /(total_amount_cents:\s*z\.number\(\)\.int\(\)\.nonnegative\(\{[\s\S]*?\}\)),/,
-        '$1.optional(),'
-      );
-      if (!code.includes('PricingBreakdownSchema')) {
-        code = `export const PricingBreakdownSchema = z.object({\n  amount_minor: z.number().int().nonnegative(),\n  currency: z.string(),\n  tax_cents: z.number().int().nonnegative()\n});\n\n` + code;
-      }
-      if (!code.includes('pricing_breakdown:')) {
-        code = code.replace(
-          /(export const OrderResponseSchema = z\.object\(\{)/,
-          `$1\n  pricing_breakdown: PricingBreakdownSchema.optional(),`
-        );
-      }
-    }
-
-    // 1. Make removed legacy fields optional without breaking chained Zod methods
-    for (const change of removedChanges) {
-      const field = change.fieldPath?.split('.').pop() || change.fieldPath;
-      if (!field || !code.includes(`${field}:`)) continue;
-      if (new RegExp(`${field}:[\\s\\S]*?\\.optional\\(\\)`, 'm').test(code)) continue;
-
-      const fieldBlockRegex = new RegExp(`(${field}:\\s*z[\\s\\S]*?\\}\\)),`, 'g');
-      if (fieldBlockRegex.test(code)) {
-        code = code.replace(fieldBlockRegex, `$1.optional(),`);
-      } else {
-        const singleLineRegex = new RegExp(`(${field}:\\s*(?:z\\.[a-zA-Z0-9_]+(?:\\([^)]*\\))?|[a-zA-Z0-9_]+Enum)),`, 'g');
-        if (singleLineRegex.test(code)) {
-          code = code.replace(singleLineRegex, `$1.optional(),`);
-        }
-      }
-    }
-
-    // 2. Add newly added fields to the matching frontend schema
-    for (const change of addedChanges) {
-      const field = change.fieldPath?.split('.').pop() || change.fieldPath;
-      if (!field || field === 'pricing_breakdown' || code.includes(`${field}:`)) continue;
-
-      const schemaMatch = change.path?.match(/api\/v1\/([a-zA-Z0-9_]+)/i) || change.fieldPath?.match(/^([a-zA-Z0-9_]+)/);
-      const schemaHint = schemaMatch ? schemaMatch[1].toLowerCase() : '';
-
-      const objRegex = /(export const ([a-zA-Z0-9_]+) = z[\s\S]*?\.object\(\{)([\s\S]*?)(\}\))/g;
-      let replaced = false;
-      code = code.replace(objRegex, (match, prefix, name, body, suffix) => {
-        if (!replaced && (!schemaHint || name.toLowerCase().includes(schemaHint))) {
-          replaced = true;
-          return `${prefix}\n  ${field}: z.any().optional(),${body}${suffix}`;
+          return `${prefix}\n  // Synchronized contract field\n  ${field}: z.any().optional(),${body}${suffix}`;
         }
         return match;
       });
@@ -201,23 +253,31 @@ function applyDynamicAstPatch(
       }
     }
 
-    // Expand status enum if needed
-    const orderStatusMatch = code.match(/OrderStatusEnum = z\.enum\(\[\s*([\s\S]*?)\s*\]\)/);
-    if (orderStatusMatch && !orderStatusMatch[1].includes("'completed'")) {
-      code = code.replace(
-        /OrderStatusEnum = z\.enum\(\[\s*([\s\S]*?)\s*\]\)/,
-        (_match, items) => `OrderStatusEnum = z.enum([\n  ${items.trim()},\n  'completed'\n])`
-      );
+    // Expand status enums if reported in breaking changes
+    const enumChanges = breakingChanges.filter(
+      (c) => c.category?.includes('ENUM') || c.message?.includes('enum') || c.message?.includes('Enum') || c.category === 'ENUM_VALUE_ADDED'
+    );
+    for (const ec of enumChanges) {
+      const val = ec.fieldPath?.split('.').pop() || ec.newValue;
+      if (val && typeof val === 'string' && !code.includes(`'${val}'`) && !code.includes(`"${val}"`)) {
+        code = code.replace(/(\.enum\(\[\s*[\s\S]*?)(\s*\]\))/, `$1,\n  '${val}'$2`);
+      }
     }
 
-    // 3. ONLY touch CheckoutSummary.tsx IF total_amount_cents was in the breaking changes!
-    if (touchesTotalAmount && componentFile && fs.existsSync(componentFile)) {
+    // 3. Update component file if affected
+    if (componentFile && fs.existsSync(componentFile)) {
       let compCode = fs.readFileSync(componentFile, 'utf-8');
-      if (compCode.includes('order.total_amount_cents') && !compCode.includes('pricing_breakdown')) {
-        compCode = compCode.replace(
-          /const formattedTotal = formatCurrency\(order\.total_amount_cents,\s*order\.currency_code\);/,
-          `const effectiveCents = (order as any).pricing_breakdown?.amount_minor ?? order.total_amount_cents ?? 0;\n  const formattedTotal = formatCurrency(effectiveCents, order.currency_code);`
-        );
+      let compChanged = false;
+      for (const change of removedChanges) {
+        const field = change.fieldPath?.split('.').pop() || change.fieldPath;
+        if (!field) continue;
+        const accessRegex = new RegExp(`(\\b([a-zA-Z0-9_]+)\\.${field}\\b)`, 'g');
+        if (accessRegex.test(compCode)) {
+          compCode = compCode.replace(accessRegex, `(($2 as any).${field} ?? ($2 as any).${addedChanges[0]?.fieldPath || 'fallback'})`);
+          compChanged = true;
+        }
+      }
+      if (compChanged) {
         fs.writeFileSync(componentFile, compCode, 'utf-8');
       }
     }
@@ -724,15 +784,12 @@ export async function executeAutoPatch(
     targetWorkspace = backendWorkspace;
     schemaVersion = 'v1.1.0-adapter';
 
-    let schemaRel = 'src/schemas/orders.ts';
-    const schemasDir = path.resolve(backendWorkspaceDir, 'src/schemas');
-    if (fs.existsSync(schemasDir)) {
-      const files = fs.readdirSync(schemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
-      if (files.length > 0) {
-        schemaRel = `src/schemas/${files.find((f) => f === 'orders.ts') || files[0]}`;
-      }
-    }
-    const schemaFile = path.resolve(backendWorkspaceDir, schemaRel);
+    const { fullPath: schemaFile, relPath: schemaRel } = resolveTargetFile(
+      backendWorkspaceDir,
+      'src/schemas',
+      context?.changedFile,
+      breakingChanges
+    );
     patchedFiles = [schemaFile];
     fs.mkdirSync(path.dirname(schemaFile), { recursive: true });
 
@@ -870,35 +927,19 @@ Do not overwrite entire files with unrelated code or delete existing schemas.`;
     targetWorkspace = frontendWorkspace;
     schemaVersion = 'v2.0.0-synchronized';
 
-    let feSchemaRel = 'src/schemas/orders.ts';
-    const feSchemasDir = path.resolve(frontendWorkspaceDir, 'src/schemas');
-    if (fs.existsSync(feSchemasDir)) {
-      const files = fs.readdirSync(feSchemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
-      if (files.length > 0) {
-        feSchemaRel = `src/schemas/${files.find((f) => f === 'orders.ts') || files[0]}`;
-      }
-    }
-    const schemaFile = path.resolve(frontendWorkspaceDir, feSchemaRel);
-
-    let componentRel = 'src/components/CheckoutSummary.tsx';
-    const compDir = path.resolve(frontendWorkspaceDir, 'src/components');
-    if (fs.existsSync(compDir)) {
-      const files = fs.readdirSync(compDir).filter((f) => f.endsWith('.tsx'));
-      if (files.length > 0) {
-        componentRel = `src/components/${files.find((f) => f === 'CheckoutSummary.tsx') || files[0]}`;
-      }
-    }
-    const componentFile = path.resolve(frontendWorkspaceDir, componentRel);
-    
-    // Only flag componentFile as patched if total_amount_cents was in the breaking changes
-    const touchesTotalAmount = breakingChanges.some(
-      (c) => c.fieldPath?.includes('total_amount_cents') || c.message?.includes('total_amount_cents')
+    const { fullPath: schemaFile, relPath: _feSchemaRel } = resolveTargetFile(
+      frontendWorkspaceDir,
+      'src/schemas',
+      context?.changedFile,
+      breakingChanges
     );
-    patchedFiles = touchesTotalAmount ? [schemaFile, componentFile] : [schemaFile];
+
+    const affectedComponents = findAffectedConsumerComponents(frontendWorkspaceDir, removedFields);
+    patchedFiles = [schemaFile, ...affectedComponents];
 
     fs.mkdirSync(path.dirname(schemaFile), { recursive: true });
-    if (touchesTotalAmount) {
-      fs.mkdirSync(path.dirname(componentFile), { recursive: true });
+    for (const comp of affectedComponents) {
+      fs.mkdirSync(path.dirname(comp), { recursive: true });
     }
 
     // Step 1: Use Codex AI agent if available to generate dynamic consumer patch (skipped in headless unit tests)
@@ -926,13 +967,13 @@ Do not overwrite entire files with unrelated templates or delete unrelated schem
     // Step 2: Dynamic AST patcher fallback (guarantees targeted in-place patch)
     if (!codexSucceeded) {
       if (breakingChanges.length > 0) {
-        applyDynamicAstPatch(schemaFile, 'OPTION_B', breakingChanges, componentFile);
+        applyDynamicAstPatch(schemaFile, 'OPTION_B', breakingChanges, affectedComponents[0]);
       } else {
         applyDynamicAstPatch(schemaFile, 'OPTION_B', [
           { category: 'PROPERTY_REMOVED', fieldPath: 'total_amount_cents' },
           { category: 'PROPERTY_ADDED', fieldPath: 'pricing_breakdown' },
           { category: 'ENUM_VALUE_ADDED', fieldPath: 'status.completed' }
-        ], componentFile);
+        ], affectedComponents[0]);
       }
     }
 

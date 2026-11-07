@@ -45,12 +45,14 @@ app.listen(PORT, async () => {
     console.log('[pactroom-server] ⚠ Mattermost bridge not configured — set SWITCH_MATTERMOST_TOKEN and SWITCH_CHANNEL_ID to enable');
   }
 
-  // Ensure workspaces and database start in a clean baseline state
-  try {
-    await switchBridge.resetAllWorkspacesToBaseline();
-    console.log('[pactroom-server] Baseline workspaces initialized cleanly.');
-  } catch (err) {
-    console.error('[pactroom-server] Baseline init note:', err);
+  // Only reset internal demo workspaces if explicitly requested via AUTO_RESET_BASELINE=true
+  if (process.env.AUTO_RESET_BASELINE === 'true') {
+    try {
+      await switchBridge.resetAllWorkspacesToBaseline();
+      console.log('[pactroom-server] Baseline workspaces initialized cleanly.');
+    } catch (err) {
+      console.error('[pactroom-server] Baseline init note:', err);
+    }
   }
 
   // Filesystem watcher on Machine A: active by default, disable with ENABLE_FS_WATCHER=false
