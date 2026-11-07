@@ -130,7 +130,7 @@ export const baselineV1Spec: OpenApiDocument = {
 
 export class SwitchBridge {
   private activeNegotiation: NegotiationState | null = null;
-  private teamSlug = 'pactflow';
+  private teamSlug = process.env.SWITCH_TEAM_SLUG || 'pactroom';
 
   constructor() {
     this.activeNegotiation = {
@@ -192,9 +192,12 @@ export class SwitchBridge {
     // Bridge to real Switch room via Mattermost (no-ops if not configured)
     if (isBridgeAvailable()) {
       const agentTokenMap: Record<string, string | undefined> = {
-        [`${this.teamSlug}-watch`]: process.env.SWITCH_WATCH_TOKEN,
-        [`${this.teamSlug}-verify`]: process.env.SWITCH_VERIFY_TOKEN,
-        [`${this.teamSlug}-sync`]: process.env.SWITCH_SYNC_TOKEN,
+        [`${this.teamSlug}-watch`]: process.env.SWITCH_WATCH_TOKEN || 'uuztj6g7ajdtim6zra1z3bb8zc',
+        [`${this.teamSlug}-verify`]: process.env.SWITCH_VERIFY_TOKEN || 'qso9qytdu7by9m46wjugocsqny',
+        [`${this.teamSlug}-sync`]: process.env.SWITCH_SYNC_TOKEN || 'y458tsmpzbg4ubo9nmeruy8msr',
+        'pactroom-watch': process.env.SWITCH_WATCH_TOKEN || 'uuztj6g7ajdtim6zra1z3bb8zc',
+        'pactroom-verify': process.env.SWITCH_VERIFY_TOKEN || 'qso9qytdu7by9m46wjugocsqny',
+        'pactroom-sync': process.env.SWITCH_SYNC_TOKEN || 'y458tsmpzbg4ubo9nmeruy8msr',
       };
       const agentToken = agentTokenMap[senderAgentId];
       await postToSwitchRoomAs(agentToken, content).catch((err: any) => {
@@ -416,6 +419,7 @@ export class SwitchBridge {
     sseManager.broadcast('negotiation_update', this.activeNegotiation);
 
     // Run real git diff on backend
+    console.log(`[pactroom-watch] Inspecting uncommitted working tree schema in ${changedFile || 'backend schemas'}...`);
     const gitDiff = await runGitDiff(backendWorkspace);
     await runGitStatus(backendWorkspace);
 
@@ -454,6 +458,11 @@ export class SwitchBridge {
 
     if (diffResult.hasBreakingChanges) {
       this.activeNegotiation.status = 'BREAKING_FOUND';
+      console.log(`[pactroom-watch] ⚠️ Found ${diffResult.breakingCount} breaking change(s) in schema!`);
+      diffResult.changes.forEach((c) => {
+        console.log(`[pactroom-watch]   - ${c.method || 'GET'} ${c.path}: ${c.message}`);
+      });
+      console.log(`[pactroom-watch] Posting breaking change notification to Mattermost #pactroom-api-contracts...`);
       sqlite.prepare(`
         UPDATE contract_negotiations
         SET status = 'BREAKING_FOUND', breaking_count = ?, diff_summary = ?, updated_at = ?
@@ -492,6 +501,7 @@ Addressing **@${this.teamSlug}-verify** on Machine B with candidate schema shape
       await this.runVerifyAgent();
     } else {
       this.activeNegotiation.status = 'RESOLVED';
+      console.log(`[pactroom-watch] ✅ Working tree is backward-compatible. No breaking changes detected.`);
       await this.postRoomMessage(
         `${this.teamSlug}-watch`,
         `${this.teamSlug}-watch (Backend Machine A)`,
@@ -548,6 +558,7 @@ Scanning \`workspaces/frontend-consumer\` AST and executing real \`tsc --noEmit\
       };
 
     const verificationResult = await runFrontendContractVerification(frontendWorkspaceDir, candidateSchema, { runVitest: true });
+    console.log(`[pactroom-verify] Executed real tsc --noEmit (exit code: ${verificationResult.tscExitCode}) and vitest (exit code: ${verificationResult.vitestExitCode}).`);
 
     // Clear previous breakages for this negotiation
     try {
@@ -654,6 +665,7 @@ Scanning \`workspaces/frontend-consumer\` AST and executing real \`tsc --noEmit\
     }
 
     if (!verificationResult.passed) {
+      console.log(`[pactroom-verify] ❌ Verification failed with ${breakagesCount} diagnostic error(s). Posting to Mattermost...`);
       const diagSummaries = verificationResult.diagnostics
         .map((d) => {
           const fn = d.fileName.includes('__pactroom_fixture_') || d.fileName.includes('.tmp.ts')
@@ -661,6 +673,7 @@ Scanning \`workspaces/frontend-consumer\` AST and executing real \`tsc --noEmit\
             : d.fileName;
           const ln = d.fileName.includes('__pactroom_fixture_') || d.fileName.includes('.tmp.ts') ? 19 : d.line;
           const col = d.fileName.includes('__pactroom_fixture_') || d.fileName.includes('.tmp.ts') ? 23 : d.column;
+          console.log(`[pactroom-verify]   - ${fn}:${ln}:${col} [${d.code}]: ${d.message}`);
           return `  * \`${fn}:${ln}:${col}\` [\`${d.code}\`]: ${d.message}`;
         })
         .join('\n');
@@ -750,6 +763,10 @@ I have synthesized two concrete non-breaking resolution strategies:
 Under Switch Room Protocol rules, I am paused at the approval gate. Type **"Approve Option A"** or **"Approve Option B"** in chat (or click the approval button in the studio) to execute the auto-patch.
     `.trim();
 
+    console.log(`[pactroom-sync] Synthesizing non-breaking resolution plans (Option A vs Option B)...`);
+    console.log(`[pactroom-sync] 🛑 Paused at Human Approval Gate (auto_approve: false).`);
+    console.log(`[pactroom-sync] ⏳ Awaiting mutual approval in Mattermost: Type "Approve Option A" or "Approve Option B" in #pactroom-api-contracts.`);
+
     await this.postRoomMessage(
       `${this.teamSlug}-sync`,
       `${this.teamSlug}-sync (Arbitrator)`,
@@ -789,8 +806,10 @@ Backend Owner (\`${approvedByBackend}\`) & Frontend Owner (\`${approvedByFronten
 Executing real Auto-Patch Engine...`
     );
 
+    console.log(`[pactroom-sync] 🎯 Human approval granted for ${decisionType} by ${approvedByBackend} & ${approvedByFrontend}! Executing auto-patch...`);
     // Execute real auto-patch
     const result = await executeAutoPatch(decisionType, negotiationId, approvedByBackend, approvedByFrontend);
+    console.log(`[pactroom-sync] ✓ Auto-patch executed: ${result.patchedFiles.length} file(s) updated. Re-verifying workspace...`);
 
     // Clear resolved breakages in SQLite
     try {

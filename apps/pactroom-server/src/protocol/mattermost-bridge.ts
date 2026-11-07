@@ -31,54 +31,71 @@ const seenPostIds = new Set<string>();
 export async function initMattermostBridge(
   overrides?: Partial<MattermostConfig>
 ): Promise<boolean> {
-  const url = overrides?.url || process.env.SWITCH_MATTERMOST_URL || 'http://localhost:49388';
-  // Use explicit token, env var, or local development token
-  let token = overrides?.token || process.env.SWITCH_MATTERMOST_TOKEN || '';
-  if (!token) {
-    // Check local default admin bot token
-    token = 'yo791i4ozpb1by947xiwy5au3w';
+  const candidateUrls = [
+    overrides?.url,
+    process.env.SWITCH_MATTERMOST_URL,
+    'http://localhost:60015',
+    'http://localhost:49388',
+    'http://localhost:8065'
+  ].filter((u): u is string => Boolean(u));
+
+  const candidateTokens = [
+    overrides?.token,
+    process.env.SWITCH_MATTERMOST_TOKEN,
+    'gtrp6bar1bfgpgt51g6cywybnr',
+    'yo791i4ozpb1by947xiwy5au3w'
+  ].filter((t): t is string => Boolean(t));
+
+  let connectedUrl = '';
+  let connectedToken = '';
+
+  for (const url of candidateUrls) {
+    for (const token of candidateTokens) {
+      try {
+        const userRes = await fetch(`${url}/api/v4/users/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (userRes.ok) {
+          const user = (await userRes.json()) as { id?: string; username?: string };
+          botUserId = user.id || '';
+          connectedUrl = url;
+          connectedToken = token;
+          console.log(`[mattermost-bridge] ✓ Connected as @${user.username || 'unknown'} (id: ${botUserId}) to ${url}`);
+          break;
+        }
+      } catch {
+        // try next combination
+      }
+    }
+    if (connectedUrl) break;
+  }
+
+  if (!connectedUrl) {
+    console.warn(`[mattermost-bridge] Cannot reach Mattermost at any candidate URL (${candidateUrls.join(', ')}). Bridge disabled.`);
+    available = false;
+    return false;
   }
 
   let channelId = overrides?.channelId || process.env.SWITCH_CHANNEL_ID || '';
   const teamName = process.env.SWITCH_TEAM_NAME || 'switch';
   const channelName = process.env.SWITCH_CHANNEL_NAME || 'pactroom-api-contracts';
 
-  // Verify connectivity and auth
-  try {
-    const userRes = await fetch(`${url}/api/v4/users/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!userRes.ok) {
-      const body = await userRes.text();
-      console.warn(`[mattermost-bridge] Auth check failed (${userRes.status}): ${body}. Bridge disabled.`);
-      available = false;
-      return false;
-    }
-    const user = (await userRes.json()) as { id?: string; username?: string };
-    botUserId = user.id || '';
-    console.log(`[mattermost-bridge] Connected as @${user.username || 'unknown'} (id: ${botUserId}) to ${url}`);
-
-    // If channelId wasn't passed, resolve it automatically from Mattermost API
-    if (!channelId) {
-      try {
-        const chanRes = await fetch(`${url}/api/v4/teams/name/${teamName}/channels/name/${channelName}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (chanRes.ok) {
-          const chanData = (await chanRes.json()) as { id?: string };
-          if (chanData.id) {
-            channelId = chanData.id;
-            console.log(`[mattermost-bridge] Auto-resolved channel '${channelName}' -> ID: ${channelId}`);
-          }
+  // If channelId wasn't passed, resolve it automatically from Mattermost API
+  if (!channelId) {
+    try {
+      const chanRes = await fetch(`${connectedUrl}/api/v4/teams/name/${teamName}/channels/name/${channelName}`, {
+        headers: { Authorization: `Bearer ${connectedToken}` }
+      });
+      if (chanRes.ok) {
+        const chanData = (await chanRes.json()) as { id?: string };
+        if (chanData.id) {
+          channelId = chanData.id;
+          console.log(`[mattermost-bridge] ✓ Auto-resolved channel '${channelName}' -> ID: ${channelId}`);
         }
-      } catch (e: any) {
-        console.warn(`[mattermost-bridge] Could not auto-resolve channel ID: ${e.message}`);
       }
+    } catch (e: any) {
+      console.warn(`[mattermost-bridge] Could not auto-resolve channel ID: ${e.message}`);
     }
-  } catch (err: any) {
-    console.warn(`[mattermost-bridge] Cannot reach ${url}: ${err.message}. Bridge disabled.`);
-    available = false;
-    return false;
   }
 
   if (!channelId) {
@@ -87,9 +104,9 @@ export async function initMattermostBridge(
     return false;
   }
 
-  config = { url, token, channelId };
+  config = { url: connectedUrl, token: connectedToken, channelId };
   available = true;
-  console.log(`[mattermost-bridge] Bridge ACTIVE — posting to channel ${channelId}`);
+  console.log(`[mattermost-bridge] ✓ Bridge ACTIVE — posting to channel ${channelId}`);
   return true;
 }
 

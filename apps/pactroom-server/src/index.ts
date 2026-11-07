@@ -8,6 +8,18 @@ import { initMattermostBridge, startMattermostListener } from './protocol/matter
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../../');
+
+// Load environment variables from .env if available
+if (typeof process.loadEnvFile === 'function') {
+  const rootEnv = path.resolve(rootDir, '.env');
+  const serverEnv = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(rootEnv)) {
+    try { process.loadEnvFile(rootEnv); } catch {}
+  }
+  if (fs.existsSync(serverEnv)) {
+    try { process.loadEnvFile(serverEnv); } catch {}
+  }
+}
 const backendWorkspace = process.env.BACKEND_WORKSPACE || 'workspaces/backend-api';
 const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
   ? backendWorkspace
@@ -57,7 +69,8 @@ app.listen(PORT, async () => {
         isProcessing = true;
         console.log(`[pactroom-watcher] Real disk edit detected in ${filename}. Invoking @watch agent...`);
         try {
-          await switchBridge.runWatchAgent(filename);
+          const diffResult = await switchBridge.runWatchAgent(filename);
+          console.log(`[pactroom-watcher] ✓ Cycle complete for ${filename} (${diffResult.breakingCount} breaking change(s)). Standing by for edits or approvals.`);
         } catch (err) {
           console.error('[pactroom-watcher] Error in automatic watch execution:', err);
         } finally {
