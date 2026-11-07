@@ -14,6 +14,8 @@
     "test:audit": "tsx scripts/deep-route-audit.ts",
     "backend:mutate": "pnpm --filter backend-api mutate:breaking",
     "backend:reset": "pnpm --filter backend-api reset:baseline",
+    "sync:env": "tsx scripts/sync-env.ts",
+    "env:sync": "tsx scripts/sync-env.ts",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules workspaces/*/node_modules apps/*/.next"
   },
   "devDependencies": {

@@ -11,6 +11,9 @@
  *   SWITCH_CHANNEL_ID       — Mattermost channel ID for the pactroom-api-contracts room
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 export interface MattermostConfig {
   url: string;
   token: string;
@@ -22,6 +25,94 @@ let available = false;
 let botUserId = '';
 let listenerInterval: NodeJS.Timeout | null = null;
 const seenPostIds = new Set<string>();
+
+/**
+ * Auto-inject an environment variable directly into the local .env file.
+ */
+function autoInjectEnv(key: string, value: string): void {
+  try {
+    const candidatePaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(process.cwd(), '../../.env'),
+      path.resolve(__dirname, '../../../../.env'),
+      path.resolve(__dirname, '../../../.env')
+    ];
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        let content = fs.readFileSync(p, 'utf8');
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (regex.test(content)) {
+          content = content.replace(regex, `${key}=${value}`);
+        } else {
+          content = content.trimEnd() + `\n${key}=${value}\n`;
+        }
+        fs.writeFileSync(p, content, 'utf8');
+        console.log(`[mattermost-bridge] ⚡ Auto-injected ${key}=${value} into ${p}`);
+        break;
+      }
+    }
+  } catch (err: any) {
+    // Non-fatal if filesystem is read-only
+  }
+}
+
+/**
+ * Dynamically resolves the latest active non-deleted channel matching pactroom-api-contracts.
+ */
+export async function resolveActiveChannelId(
+  targetUrl?: string,
+  targetToken?: string
+): Promise<string | null> {
+  const url = targetUrl || config?.url || process.env.SWITCH_MATTERMOST_URL || 'http://localhost:60015';
+  const token = targetToken || config?.token || process.env.SWITCH_MATTERMOST_TOKEN || 'gtrp6bar1bfgpgt51g6cywybnr';
+  const teamName = process.env.SWITCH_TEAM_NAME || 'switch';
+  const channelName = process.env.SWITCH_CHANNEL_NAME || 'pactroom-api-contracts';
+
+  try {
+    const teamRes = await fetch(`${url}/api/v4/teams/name/${teamName}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!teamRes.ok) return null;
+    const teamData = (await teamRes.json()) as { id?: string };
+    if (!teamData.id) return null;
+
+    const channelsRes = await fetch(`${url}/api/v4/teams/${teamData.id}/channels`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!channelsRes.ok) return null;
+
+    const channels = (await channelsRes.json()) as Array<{
+      id: string;
+      name: string;
+      display_name?: string;
+      create_at: number;
+      delete_at?: number;
+    }>;
+
+    const matching = channels
+      .filter((c) => (!c.delete_at || c.delete_at === 0) && (
+        c.name.startsWith(channelName) ||
+        c.name.startsWith('pactroom-api-contracts') ||
+        (c.display_name && c.display_name.includes('pactroom-api-contracts'))
+      ))
+      .sort((a, b) => b.create_at - a.create_at);
+
+    if (matching.length > 0) {
+      const resolvedId = matching[0].id;
+      if (config) {
+        config.channelId = resolvedId;
+      }
+      process.env.SWITCH_CHANNEL_ID = resolvedId;
+      autoInjectEnv('SWITCH_CHANNEL_ID', resolvedId);
+      console.log(`[mattermost-bridge] ✓ Dynamic Auto-Resolve: Active Switch room '${matching[0].name}' -> ID: ${resolvedId}`);
+      return resolvedId;
+    }
+  } catch (err: any) {
+    console.warn(`[mattermost-bridge] Failed to resolve active channel: ${err.message}`);
+  }
+
+  return null;
+}
 
 /**
  * Initialize the Mattermost bridge with explicit config or environment variables.
@@ -76,39 +167,17 @@ export async function initMattermostBridge(
     return false;
   }
 
-  let channelId = overrides?.channelId || process.env.SWITCH_CHANNEL_ID || '';
-  const teamName = process.env.SWITCH_TEAM_NAME || 'switch';
-  const channelName = process.env.SWITCH_CHANNEL_NAME || 'pactroom-api-contracts';
-
-  // Auto-resolve channel: find the latest room matching channelName in team
-  try {
-    const teamRes = await fetch(`${connectedUrl}/api/v4/teams/name/${teamName}`, {
-      headers: { Authorization: `Bearer ${connectedToken}` }
-    });
-    if (teamRes.ok) {
-      const teamData = (await teamRes.json()) as { id?: string };
-      if (teamData.id) {
-        const channelsRes = await fetch(`${connectedUrl}/api/v4/teams/${teamData.id}/channels`, {
-          headers: { Authorization: `Bearer ${connectedToken}` }
-        });
-        if (channelsRes.ok) {
-          const channels = (await channelsRes.json()) as Array<{ id: string; name: string; create_at: number }>;
-          const matching = channels
-            .filter((c) => c.name.startsWith(channelName) || c.name.startsWith('pactroom-api-contracts'))
-            .sort((a, b) => b.create_at - a.create_at);
-          if (matching.length > 0) {
-            channelId = matching[0].id;
-            console.log(`[mattermost-bridge] ✓ Auto-resolved active Switch room '${matching[0].name}' -> ID: ${channelId}`);
-          }
-        }
-      }
-    }
-  } catch (e: any) {
-    console.warn(`[mattermost-bridge] Could not auto-resolve channel ID: ${e.message}`);
+  // Auto-resolve latest active non-deleted channel
+  let channelId = overrides?.channelId || '';
+  const resolved = await resolveActiveChannelId(connectedUrl, connectedToken);
+  if (resolved) {
+    channelId = resolved;
+  } else if (process.env.SWITCH_CHANNEL_ID) {
+    channelId = process.env.SWITCH_CHANNEL_ID;
   }
 
   if (!channelId) {
-    console.warn('[mattermost-bridge] No SWITCH_CHANNEL_ID set or resolvable. Bridge disabled — messages will only appear in Studio.');
+    console.warn('[mattermost-bridge] No active SWITCH_CHANNEL_ID found. Bridge standing by — messages will appear in Studio.');
     available = false;
     return false;
   }
@@ -127,50 +196,24 @@ export async function postToSwitchRoom(
   message: string,
   threadId?: string
 ): Promise<string | null> {
-  if (!available || !config) return null;
-
-  try {
-    const payload: Record<string, string> = {
-      channel_id: config.channelId,
-      message
-    };
-    if (threadId) {
-      payload.root_id = threadId;
-    }
-
-    const res = await fetch(`${config.url}/api/v4/posts`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      console.error(`[mattermost-bridge] Post failed (${res.status}): ${body}`);
-      return null;
-    }
-
-    const post = (await res.json()) as { id?: string };
-    return post.id || null;
-  } catch (err: any) {
-    console.error(`[mattermost-bridge] Post error: ${err.message}`);
-    return null;
-  }
+  return postToSwitchRoomAs(undefined, message, threadId);
 }
 
 /**
  * Post a message to the Switch room as a specific bot user (using their token).
  * Falls back to the admin bot token if the agent token is not provided.
+ * Automatically auto-heals if the target channel was deleted or refreshed.
  */
 export async function postToSwitchRoomAs(
   agentToken: string | undefined,
   message: string,
   threadId?: string
 ): Promise<string | null> {
-  if (!available || !config) return null;
+  if (!available || !config) {
+    // Attempt dynamic connection if called while server running
+    const ok = await initMattermostBridge();
+    if (!ok || !config) return null;
+  }
 
   const token = agentToken || config.token;
 
@@ -183,7 +226,7 @@ export async function postToSwitchRoomAs(
       payload.root_id = threadId;
     }
 
-    const res = await fetch(`${config.url}/api/v4/posts`, {
+    let res = await fetch(`${config.url}/api/v4/posts`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -193,9 +236,31 @@ export async function postToSwitchRoomAs(
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      console.error(`[mattermost-bridge] Post-as failed (${res.status}): ${body}`);
-      return null;
+      const errBody = await res.text();
+      // Auto-heal if channel was deleted (400) or missing (404)
+      if (res.status === 400 || res.status === 404) {
+        console.warn(`[mattermost-bridge] Post error (${res.status}: ${errBody.slice(0, 80)}...). Auto-resolving active channel...`);
+        const freshChannelId = await resolveActiveChannelId(config.url, config.token);
+        if (freshChannelId && freshChannelId !== config.channelId) {
+          config.channelId = freshChannelId;
+          payload.channel_id = freshChannelId;
+          console.log(`[mattermost-bridge] 🔄 Auto-healing: retrying post to active channel ${freshChannelId}`);
+          res = await fetch(`${config.url}/api/v4/posts`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+        }
+      }
+
+      if (!res.ok) {
+        const finalBody = await res.text();
+        console.error(`[mattermost-bridge] Post-as failed (${res.status}): ${finalBody}`);
+        return null;
+      }
     }
 
     const post = (await res.json()) as { id?: string };
@@ -250,7 +315,15 @@ export function startMattermostListener(
       const res = await fetch(`${config.url}/api/v4/channels/${config.channelId}/posts?since=${lastCheckTime - 3000}`, {
         headers: { Authorization: `Bearer ${config.token}` }
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 404) {
+          const freshId = await resolveActiveChannelId(config.url, config.token);
+          if (freshId && freshId !== config.channelId) {
+            config.channelId = freshId;
+          }
+        }
+        return;
+      }
 
       const data = (await res.json()) as { order?: string[]; posts?: Record<string, any> };
       if (!data.order || !data.posts) return;
