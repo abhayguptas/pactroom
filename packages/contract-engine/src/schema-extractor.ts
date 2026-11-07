@@ -324,7 +324,8 @@ export function extractLiveBackendSchema(backendWorkspacePath: string): Extracte
  */
 export function readCommittedGitHeadFile(workspacePath: string, relativeFilePath: string): string | null {
   try {
-    const output = execSync(`git show HEAD:${relativeFilePath}`, {
+    const gitPath = relativeFilePath.startsWith('./') ? relativeFilePath : `./${relativeFilePath}`;
+    const output = execSync(`git show HEAD:${gitPath}`, {
       cwd: workspacePath,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore']

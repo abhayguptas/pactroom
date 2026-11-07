@@ -184,14 +184,14 @@ export async function runGitDiff(
   workspace: string,
   targetRef?: string
 ): Promise<ProcessRunResult> {
-  const args = targetRef ? ['diff', targetRef] : ['diff'];
+  const args = targetRef ? ['diff', targetRef, '--', '.'] : ['diff', '--', '.'];
   return executeChildProcess('git', workspace, 'git', args);
 }
 
 /**
- * Execute real `git status --porcelain` on given workspace
+ * Execute real `git status --porcelain` on given workspace scoped to directory
  */
 export async function runGitStatus(workspace: string): Promise<ProcessRunResult> {
-  return executeChildProcess('git', workspace, 'git', ['status', '--porcelain', '-b']);
+  return executeChildProcess('git', workspace, 'git', ['status', '--porcelain', '-b', '.']);
 }
 

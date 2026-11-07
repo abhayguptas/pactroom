@@ -26,6 +26,15 @@ done
 echo "==> Clearing Next.js cache..."
 rm -rf apps/pactroom-web/.next
 
+echo "==> Resetting Git working trees to clean baseline..."
+git checkout workspaces/backend-api/src/schemas/orders.ts 2>/dev/null || true
+git checkout workspaces/backend-api/src/routes/v1.ts 2>/dev/null || true
+git checkout workspaces/frontend-consumer/src/schemas/orders.ts 2>/dev/null || true
+git checkout workspaces/frontend-consumer/src/components/CheckoutSummary.tsx 2>/dev/null || true
+
+echo "==> Resetting SQLite databases to clean baseline..."
+rm -f pactroom.db* apps/pactroom-server/pactroom.db* 2>/dev/null || true
+
 echo "==> Checking ports 3000, 3001, 3002:"
 if command -v ss >/dev/null 2>&1; then
   ss -tulpn | grep -E ':(3000|3001|3002) ' || echo "Ports 3000, 3001, 3002 are 100% clean and free!"

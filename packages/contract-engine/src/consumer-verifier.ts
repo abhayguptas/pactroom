@@ -210,7 +210,13 @@ export async function runFrontendContractVerification(
 
   const isV1Contract =
     candidateSchema.properties?.['total_amount_cents'] !== undefined ||
-    candidateSchema.properties?.['pricing_breakdown'] !== undefined;
+    candidateSchema.properties?.['pricing_breakdown'] !== undefined ||
+    candidateSchema.properties?.['customer_id'] !== undefined ||
+    candidateSchema.properties?.['customer_tier'] !== undefined ||
+    candidateSchema.properties?.['currency_code'] !== undefined ||
+    candidateSchema.properties?.['subtotal_cents'] !== undefined ||
+    candidateSchema.properties?.['tax_cents'] !== undefined ||
+    candidateSchema.properties?.['line_items'] !== undefined;
 
   const importStatement = isV1Contract
     ? `import { OrderResponseSchema } from './schemas/orders.js';`

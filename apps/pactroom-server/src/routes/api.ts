@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { sqlite } from '../db/database.js';
 import { sseManager } from '../events/sse-manager.js';
 import { switchBridge } from '../protocol/switch-bridge.js';
+import { getBridgeConfig, isBridgeAvailable, initMattermostBridge } from '../protocol/mattermost-bridge.js';
 import {
   runGitStatus,
   runGitDiff,
@@ -84,6 +85,31 @@ apiRouter.get('/status', async (_req: Request, res: Response) => {
 });
 
 // ============================================================================
+// Mattermost / Switch Bridge Endpoints
+// ============================================================================
+
+apiRouter.get('/bridge/status', (_req: Request, res: Response) => {
+  res.json({
+    available: isBridgeAvailable(),
+    config: getBridgeConfig()
+  });
+});
+
+apiRouter.post('/bridge/configure', async (req: Request, res: Response) => {
+  try {
+    const { url, token, channelId } = req.body || {};
+    const success = await initMattermostBridge({ url, token, channelId });
+    res.json({
+      success,
+      available: isBridgeAvailable(),
+      config: getBridgeConfig()
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
 // Switch Rooms Endpoints
 // ============================================================================
 
@@ -115,24 +141,30 @@ apiRouter.get('/rooms/:id', (req: Request, res: Response) => {
 apiRouter.get('/negotiations', (_req: Request, res: Response) => {
   try {
     const negotiations = sqlite.prepare('SELECT * FROM contract_negotiations ORDER BY created_at DESC LIMIT 10').all();
-    const breakages = sqlite.prepare(`
-      SELECT 
-        id, 
-        negotiation_id as negotiationId, 
-        workspace, 
-        tool, 
-        file_path as filePath, 
-        line_number as line, 
-        column_number as column, 
-        error_code as errorCode, 
-        code_snippet as message, 
-        code_snippet as snippet, 
-        raw_terminal_output as rawTerminalOutput, 
-        created_at as createdAt 
-      FROM consumer_breakages 
-      ORDER BY created_at DESC 
-      LIMIT 20
-    `).all();
+    const activeNeg = switchBridge.getActiveNegotiation();
+    const hasActiveBreaking = activeNeg && activeNeg.status !== 'RESOLVED' && (activeNeg.breakingCount > 0 || activeNeg.breakagesCount > 0);
+
+    const breakages = hasActiveBreaking
+      ? sqlite.prepare(`
+          SELECT 
+            id, 
+            negotiation_id as negotiationId, 
+            workspace, 
+            tool, 
+            file_path as filePath, 
+            line_number as line, 
+            column_number as column, 
+            error_code as errorCode, 
+            code_snippet as message, 
+            code_snippet as snippet, 
+            raw_terminal_output as rawTerminalOutput, 
+            created_at as createdAt 
+          FROM consumer_breakages 
+          WHERE negotiation_id = ?
+          ORDER BY created_at DESC 
+          LIMIT 20
+        `).all(activeNeg.id)
+      : [];
     const rawDecisions = sqlite.prepare('SELECT * FROM room_decisions ORDER BY timestamp DESC LIMIT 20').all();
     const decisions = rawDecisions.map((d: any) => ({
       id: d.id,
@@ -176,6 +208,7 @@ apiRouter.get('/negotiations', (_req: Request, res: Response) => {
         created_at as timestamp 
       FROM negotiation_messages 
       ORDER BY created_at ASC
+      LIMIT 100
     `).all();
 
     res.json({
@@ -194,23 +227,29 @@ apiRouter.get('/negotiations', (_req: Request, res: Response) => {
 // GET /api/breakages - Real TypeScript and Vitest failures recorded on Machine B
 apiRouter.get('/breakages', (_req: Request, res: Response) => {
   try {
-    const breakages = sqlite.prepare(`
-      SELECT 
-        id, 
-        negotiation_id as negotiationId, 
-        workspace, 
-        tool, 
-        file_path as filePath, 
-        line_number as line, 
-        column_number as column, 
-        error_code as errorCode, 
-        code_snippet as message, 
-        code_snippet as snippet, 
-        raw_terminal_output as rawTerminalOutput, 
-        created_at as createdAt 
-      FROM consumer_breakages 
-      ORDER BY created_at DESC
-    `).all();
+    const activeNeg = switchBridge.getActiveNegotiation();
+    const hasActiveBreaking = activeNeg && activeNeg.status !== 'RESOLVED' && (activeNeg.breakingCount > 0 || activeNeg.breakagesCount > 0);
+
+    const breakages = hasActiveBreaking
+      ? sqlite.prepare(`
+          SELECT 
+            id, 
+            negotiation_id as negotiationId, 
+            workspace, 
+            tool, 
+            file_path as filePath, 
+            line_number as line, 
+            column_number as column, 
+            error_code as errorCode, 
+            code_snippet as message, 
+            code_snippet as snippet, 
+            raw_terminal_output as rawTerminalOutput, 
+            created_at as createdAt 
+          FROM consumer_breakages 
+          WHERE negotiation_id = ?
+          ORDER BY created_at DESC
+        `).all(activeNeg.id)
+      : [];
     res.json({ breakages });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -473,9 +512,10 @@ apiRouter.get('/backend/git', async (_req: Request, res: Response) => {
     const schemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
     const schemaSource = fs.existsSync(schemaFile) ? fs.readFileSync(schemaFile, 'utf-8') : '';
 
-    const lines = gitStatus.stdout.split('\n');
+    const lines = gitStatus.stdout.split('\n').filter(Boolean);
     const branch = lines[0]?.replace('## ', '') || 'main';
-    const isDirty = lines.some((l) => l.startsWith(' M ') || l.startsWith('M ') || l.startsWith('?? ')) || gitDiff.stdout.trim().length > 0;
+    const hasDiff = gitDiff.stdout.trim().length > 0;
+    const isDirty = hasDiff;
 
     res.json({
       branch,
@@ -535,7 +575,12 @@ apiRouter.post('/backend/schema', async (req: Request, res: Response) => {
 // GET /api/frontend/diagnostics - Real tsc --noEmit, vitest, and AST diagnostics
 apiRouter.get('/frontend/diagnostics', async (_req: Request, res: Response) => {
   try {
-    const breakages = sqlite.prepare('SELECT * FROM consumer_breakages ORDER BY created_at DESC LIMIT 20').all();
+    const activeNeg = switchBridge.getActiveNegotiation();
+    const hasActiveBreaking = activeNeg && activeNeg.status !== 'RESOLVED' && (activeNeg.breakingCount > 0 || activeNeg.breakagesCount > 0);
+
+    const breakages = hasActiveBreaking
+      ? sqlite.prepare('SELECT * FROM consumer_breakages WHERE negotiation_id = ? ORDER BY created_at DESC LIMIT 20').all(activeNeg.id)
+      : [];
     const tscRun = await runTscVerification(frontendWorkspace);
     const vitestRun = await runVitestSuite(frontendWorkspace);
 

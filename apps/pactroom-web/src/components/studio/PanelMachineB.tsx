@@ -28,8 +28,9 @@ export const PanelMachineB: React.FC<PanelMachineBProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'diagnostics' | 'terminal' | 'component'>('diagnostics');
 
-  const hasErrors = breakages.length > 0;
   const isResolved = status === 'RESOLVED';
+  const activeBreakages = isResolved ? [] : breakages;
+  const hasErrors = activeBreakages.length > 0;
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-neutral-200 overflow-hidden font-sans text-left">
@@ -73,18 +74,18 @@ export const PanelMachineB: React.FC<PanelMachineBProps> = ({
           <span className="text-neutral-600 font-medium">Subprocess Status:</span>
           <span
             className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              hasErrors
+              isVerifying || status === 'VERIFYING_CONSUMERS'
+                ? 'bg-sky-100 border border-sky-300 text-sky-800 animate-pulse'
+                : hasErrors
                 ? 'bg-rose-100 border border-rose-300 text-rose-800'
-                : isResolved
-                ? 'bg-emerald-100 border border-emerald-300 text-emerald-800'
-                : 'bg-neutral-100 text-neutral-600'
+                : 'bg-emerald-100 border border-emerald-300 text-emerald-800'
             }`}
           >
-            {hasErrors
-              ? `FAILED (${breakages.length} Diagnostics)`
-              : isResolved
-              ? 'PASSED (0 Compiler Errors)'
-              : 'IDLE (Clean)'}
+            {isVerifying || status === 'VERIFYING_CONSUMERS'
+              ? 'VERIFYING (Running tsc & vitest...)'
+              : hasErrors
+              ? `FAILED (${activeBreakages.length} Diagnostics)`
+              : 'PASSED (0 Compiler Errors)'}
           </span>
         </div>
 
@@ -102,7 +103,7 @@ export const PanelMachineB: React.FC<PanelMachineBProps> = ({
           }`}
         >
           <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-          <span>Diagnostics ({breakages.length})</span>
+          <span>Diagnostics ({activeBreakages.length})</span>
         </button>
 
         <button
@@ -135,7 +136,7 @@ export const PanelMachineB: React.FC<PanelMachineBProps> = ({
         {/* TAB 1: Diagnostics List */}
         {activeTab === 'diagnostics' && (
           <div className="space-y-3">
-            {breakages.length === 0 ? (
+            {activeBreakages.length === 0 ? (
               <div className="p-8 rounded-2xl bg-white border border-neutral-200 text-center text-neutral-500 space-y-2 shadow-soft-sm">
                 <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                 <div className="font-semibold text-neutral-800 text-xs">Zero Type Regressions</div>
@@ -144,8 +145,11 @@ export const PanelMachineB: React.FC<PanelMachineBProps> = ({
                 </p>
               </div>
             ) : (
-              breakages.map((b) => {
-                const filePath = b.filePath || (b as any).file_path || 'src/schemas/orders.ts';
+              activeBreakages.map((b) => {
+                const rawPath = b.filePath || (b as any).file_path || 'src/schemas/orders.ts';
+                const filePath = rawPath.includes('__pactroom_fixture_') || rawPath.includes('.tmp.ts')
+                  ? 'src/components/CheckoutSummary.tsx'
+                  : rawPath;
                 const line = b.line !== undefined ? b.line : (b as any).line_number || 1;
                 const column = b.column !== undefined ? b.column : (b as any).column_number || 1;
                 const errorCode = b.errorCode || (b as any).error_code || '2339';

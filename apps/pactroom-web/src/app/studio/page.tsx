@@ -98,11 +98,20 @@ export default function StudioPage() {
     } catch (e) {}
   }, [serverUrl]);
 
-  // Connect to SSE Stream on Mount
+  // Reset and initialize clean baseline on studio entry
   useEffect(() => {
-    fetchGitInfo();
-    fetchDiagnostics();
-    fetchHistory();
+    const initCleanStudio = async () => {
+      try {
+        await fetch(`${serverUrl}/api/backend/reset`, { method: 'POST' });
+      } catch (e) {
+        console.error('Initial baseline reset error:', e);
+      }
+      fetchGitInfo();
+      fetchDiagnostics();
+      fetchHistory();
+    };
+
+    initCleanStudio();
 
     const sse = new EventSource(`${serverUrl}/api/events`);
 
@@ -137,6 +146,9 @@ export default function StudioPage() {
           ]);
         } else if (data.type === 'negotiation_update') {
           setNegotiation(data.payload);
+          if (data.payload?.status === 'RESOLVED' || data.payload?.breakingCount === 0) {
+            setBreakages([]);
+          }
           fetchGitInfo();
           fetchDiagnostics();
         } else if (data.type === 'consumer_breakage') {
@@ -147,6 +159,7 @@ export default function StudioPage() {
           });
         } else if (data.type === 'room_decision') {
           setDecisions((prev) => [data.payload, ...prev]);
+          setBreakages([]);
           fetchGitInfo();
           fetchDiagnostics();
           fetchHistory();

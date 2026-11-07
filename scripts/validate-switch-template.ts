@@ -71,6 +71,7 @@ export function validateSwitchTemplate(templatePath: string): boolean {
   const expectedParams = [
     'team',
     'provider',
+    'machine',
     'backend_location',
     'frontend_location',
     'backend_dir',
@@ -97,6 +98,11 @@ export function validateSwitchTemplate(templatePath: string): boolean {
         params.provider.default.includes('codex') &&
         params.provider.default.includes('opencode')
     );
+  }
+
+  if (params.machine) {
+    recordCheck("param 'machine' has type 'machine'", params.machine.type === 'machine');
+    recordCheck("param 'machine' defaults to ['$first']", Array.isArray(params.machine.default) && params.machine.default[0] === '$first');
   }
 
   if (params.backend_location) {
@@ -177,6 +183,7 @@ export function validateSwitchTemplate(templatePath: string): boolean {
     'description',
     'addressing',
     'provider',
+    'machine',
     'location',
     'directory',
     'instructions'
@@ -260,17 +267,101 @@ export function validateSwitchTemplate(templatePath: string): boolean {
   return report.failures.length === 0;
 }
 
+export function validateCrossMachineInstantiation(templatePath: string): boolean {
+  console.log(`\n================================================================`);
+  console.log(`[Cross-Machine Test] Testing Template Parameter Instantiation: ${path.relative(rootDir, templatePath)}`);
+  console.log(`================================================================`);
+
+  const fileContent = fs.readFileSync(templatePath, 'utf-8');
+
+  // Multi-Machine Setup: Machine A = Backend laptop, Machine B = Frontend laptop
+  const crossMachineConfig = {
+    team: 'pactflow-enterprise',
+    provider: 'opencode',
+    machine: 'primary-host',
+    backend_location: 'alex-macbook-pro.corp.switch.internal',
+    frontend_location: 'sam-workstation.remote.switch.internal',
+    backend_dir: '/Users/alex/dev/microservices/orders-api',
+    frontend_dir: '/home/sam/dev/web-clients/ecommerce-app',
+    bridge: 'slack'
+  };
+
+  // Perform parameter substitution (mimicking Switch template engine)
+  let serialized = fileContent;
+  for (const [key, val] of Object.entries(crossMachineConfig)) {
+    const pattern = new RegExp(`\\{${key}\\}`, 'g');
+    serialized = serialized.replace(pattern, val);
+  }
+
+  const resolved = YAML.parse(serialized);
+
+  // 1. Test Machine A Watch Agent
+  const watchAgent = resolved.agents.find((a: any) => a.name === 'pactflow-enterprise-watch');
+  recordCheck("Cross-machine: Watch agent named 'pactflow-enterprise-watch'", Boolean(watchAgent));
+  recordCheck(
+    "Cross-machine: Watch agent bound to Machine A location ('alex-macbook-pro.corp.switch.internal')",
+    watchAgent?.location === 'alex-macbook-pro.corp.switch.internal'
+  );
+  recordCheck(
+    "Cross-machine: Watch agent bound to Machine A directory ('/Users/alex/dev/microservices/orders-api')",
+    watchAgent?.directory === '/Users/alex/dev/microservices/orders-api'
+  );
+  recordCheck("Cross-machine: Watch agent addressing is 'anyone'", watchAgent?.addressing === 'anyone');
+
+  // 2. Test Machine B Verify Agent
+  const verifyAgent = resolved.agents.find((a: any) => a.name === 'pactflow-enterprise-verify');
+  recordCheck("Cross-machine: Verify agent named 'pactflow-enterprise-verify'", Boolean(verifyAgent));
+  recordCheck(
+    "Cross-machine: Verify agent bound to Machine B location ('sam-workstation.remote.switch.internal')",
+    verifyAgent?.location === 'sam-workstation.remote.switch.internal'
+  );
+  recordCheck(
+    "Cross-machine: Verify agent bound to Machine B directory ('/home/sam/dev/web-clients/ecommerce-app')",
+    verifyAgent?.directory === '/home/sam/dev/web-clients/ecommerce-app'
+  );
+  recordCheck("Cross-machine: Verify agent addressing is 'owner-agents'", verifyAgent?.addressing === 'owner-agents');
+
+  // 3. Test Cross-Machine Sync Arbitrator Agent
+  const syncAgent = resolved.agents.find((a: any) => a.name === 'pactflow-enterprise-sync');
+  recordCheck("Cross-machine: Sync agent named 'pactflow-enterprise-sync'", Boolean(syncAgent));
+  recordCheck("Cross-machine: Sync agent auto_approve is strictly false", syncAgent?.auto_approve === false);
+
+  // 4. Test Room
+  recordCheck("Cross-machine: Room name resolved to 'pactflow-enterprise-api-contracts'", resolved.room?.name === 'pactflow-enterprise-api-contracts');
+  recordCheck("Cross-machine: Room bridge resolved to 'slack'", resolved.room?.bridge === 'slack');
+  recordCheck(
+    "Cross-machine: Room contains all 3 instantiated agents",
+    resolved.room?.agents?.includes('pactflow-enterprise-watch') &&
+      resolved.room?.agents?.includes('pactflow-enterprise-verify') &&
+      resolved.room?.agents?.includes('pactflow-enterprise-sync')
+  );
+
+  // 5. Check that zero unresolved template tags remain
+  const leftoverTags = (serialized.match(/\{[a-z0-9_-]+\}/gi) || []).filter(
+    (t: string) => !BUILT_IN_SWITCH_VARS.has(t.replace(/[{}]/g, ''))
+  );
+  recordCheck(
+    "Cross-machine: Zero unresolved template variables remain in document",
+    leftoverTags.length === 0,
+    `Leftover tags: ${leftoverTags.join(', ')}`
+  );
+
+  return report.failures.length === 0;
+}
+
 // Main execution
 const primaryTemplate = path.resolve(rootDir, 'pactroom.template.yaml');
 const secondaryTemplate = path.resolve(rootDir, 'examples/agent-templates/pactroom.template.yaml');
 
 console.log('Validating primary Switch room template in repo root...');
 const ok1 = validateSwitchTemplate(primaryTemplate);
+validateCrossMachineInstantiation(primaryTemplate);
 
 let ok2 = true;
 if (fs.existsSync(secondaryTemplate)) {
   console.log('\nValidating mirrored Switch room template in examples/agent-templates...');
   ok2 = validateSwitchTemplate(secondaryTemplate);
+  validateCrossMachineInstantiation(secondaryTemplate);
 }
 
 console.log(`\n================================================================`);

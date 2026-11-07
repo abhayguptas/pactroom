@@ -105,7 +105,7 @@ export const EvaluatorQuickStart: React.FC = () => {
                 <span>Inspect pactroom.template.yaml</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </a>
-              <span className="text-[10px] font-mono text-neutral-400">128/128 Checks Passed</span>
+              <span className="text-[10px] font-mono text-neutral-400">168/168 Checks Passed</span>
             </div>
           </div>
 
@@ -151,6 +151,12 @@ export const EvaluatorQuickStart: React.FC = () => {
                   <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
                   <span>
                     <strong>Real Subprocess Verification:</strong> Spawns real <code className="bg-black/50 px-1 py-0.5 rounded text-orange-300">tsc --noEmit</code> and <code className="bg-black/50 px-1 py-0.5 rounded text-orange-300">vitest run</code> on Machine B.
+                  </span>
+                </div>
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Two-Way Switch Bridge:</strong> Automatically mirrors alerts into real Switch / Mattermost rooms and triggers in-place patches on human approval.
                   </span>
                 </div>
                 <div className="flex items-start gap-2.5">
@@ -276,7 +282,7 @@ cd pactroom && pnpm install`}
                   Run Automated Test Suites
                 </h4>
                 <p className="text-xs text-neutral-500 leading-relaxed mb-3">
-                  Executes 57 unit, compiler, and E2E lifecycle tests + 128 template checks.
+                  Executes 57 unit, compiler, and E2E lifecycle tests + 168 template checks.
                 </p>
               </div>
               <pre className="p-3 rounded-xl bg-neutral-900 text-neutral-200 font-mono text-[11px] overflow-x-auto leading-relaxed">

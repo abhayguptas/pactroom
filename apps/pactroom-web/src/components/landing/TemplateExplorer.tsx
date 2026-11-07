@@ -18,94 +18,124 @@ import {
   Code2
 } from 'lucide-react';
 
-export const TEMPLATE_YAML_CONTENT = `version: 1
+export const TEMPLATE_YAML_CONTENT = `# ==============================================================================
+# PactRoom Official Switch Room Template
+# Switch Version 1 Template Specification (Switch v0.31)
+# Modeled on triage-pair.template.yaml
+#
+# Connects a backend developer's local coding agent and a frontend developer's
+# local coding agent inside a shared Switch room to detect, verify, negotiate,
+# and auto-patch breaking API changes across uncommitted local branches.
+# ==============================================================================
+version: 1
 
 params:
   team:
     type: string
-    description: Lowercase alphanumeric slug prefix for every agent and room name this creates.
-    pattern: "^[a-z0-9]+$"
-    default: "pactflow"
-
+    label: Team Name / Prefix
+    description: Lowercase alphanumeric slug prefix for every agent and room name this creates
+    pattern: "[a-z][a-z0-9-]*"
   provider:
     type: provider
-    description: Which coding agent backs the agents. The first one installed is chosen.
-    default: [claude, codex, opencode]
-
-  backend_location:
-    type: location
-    description: Where {team}-watch runs (Backend developer laptop).
-    default: local
-
-  frontend_location:
-    type: location
-    description: Where {team}-verify runs (Frontend developer laptop).
-    default: local
-
+    label: AI Coding Agent Provider
+    description: Which coding agent backs the agents (Codex, OpenCode, Claude Code, Cursor, Antigravity).
+    default: [codex, opencode, claude, cursor, antigravity]
   backend_dir:
     type: directory
-    description: Absolute or relative directory of the backend repository to monitor.
-    default: workspaces/backend-api
-
+    label: Backend Repository (Machine A)
+    description: Working directory of the backend repository microservice.
+    default: "workspaces/backend-api"
   frontend_dir:
     type: directory
-    description: Absolute or relative directory of the frontend repository to test against.
-    default: workspaces/frontend-consumer
-
+    label: Frontend Repository (Machine B)
+    description: Working directory of the frontend consumer repository.
+    default: "workspaces/frontend-consumer"
+  backend_location:
+    type: location
+    label: Backend Machine Location (Machine A)
+    description: Physical machine for backend agent (defaults to local host).
+    default: local
+    input: advanced
+  frontend_location:
+    type: location
+    label: Frontend Machine Location (Machine B)
+    description: Physical machine for frontend consumer agent (can be teammate's computer or local host).
+    default: local
+    input: advanced
   bridge:
     type: bridge
+    label: Messaging App Bridge
     description: Where the room is mirrored (Slack, Discord, Teams, Telegram, or Mattermost).
     default: [$first]
     required: false
 
 agents:
   - name: "{team}-watch"
-    description: "Inspects uncommitted local backend changes, diffs OpenAPI schemas, and flags breaking changes in the room."
+    description: Inspects uncommitted local backend changes, diffs OpenAPI schemas, and flags breaking modifications
     addressing: anyone
     provider: "{provider}"
     location: "{backend_location}"
     directory: "{backend_dir}"
     instructions: |
-      You are the local backend contract watcher on Machine A.
-      You have read access to the local backend git repository on this workstation.
-      Your responsibility:
-      1. Inspect uncommitted schema diffs in real time before code is pushed.
-      2. When an API DTO, route, or response schema changes, broadcast the exact contract diff into the Switch room.
-      3. Tag @{team}-verify and summarize breaking changes with zero guessing.
+      You are the Backend Contract Watcher ({team}-watch) running directly on the backend developer's machine inside {backend_dir}.
+      Your sole mission is to ensure that no API contract change or schema modification is made in isolation without the frontend consumer's visibility.
+
+      Whenever you wake up, receive a message, or detect local branch activity:
+      1. Inspect uncommitted local backend changes using \`git diff\`, \`git status\`, and the OpenAPI 3.1 contract analyzer against the baseline contract. Check route handlers, DTO models, serializers, and Zod/Pydantic schemas.
+      2. Summarize any endpoint or DTO modification in one clear line (e.g. "OrderSchema: removed \`total_amount\`, added \`subtotal\` (number) and \`tax_amount\` (number)").
+      3. Classify whether the change is backward-compatible (e.g. optional query param added, non-breaking documentation update) or breaking (e.g. field removed, field renamed, type narrowed, status code altered, or required request body/query parameter added).
+      4. If the change is breaking: immediately address \`{team}-verify\` by name in the Switch room using \`post_message\` or \`send_targeted_message\`. Provide the exact uncommitted git diff, the impacted HTTP method and route path, and the before/after response or request payload shape.
+
+      CRITICAL INVARIANT: Never guess a schema field or type you did not read directly from disk. Read the exact source code files and verify the live OpenAPI specification before reporting.
 
   - name: "{team}-verify"
-    description: "Validates contract diffs against the frontend consumer codebase using tsc --noEmit and Vitest."
+    description: Validates contract diffs against the frontend consumer codebase using tsc --noEmit and Vitest
     addressing: owner-agents
     provider: "{provider}"
     location: "{frontend_location}"
     directory: "{frontend_dir}"
     instructions: |
-      You are the frontend consumer validation agent on Machine B.
-      You operate in workspaces/frontend-consumer on this developer's workstation.
-      Your responsibility:
-      1. When @{team}-watch flags a candidate API contract diff, test it against the consumer codebase.
-      2. Run child process checks: tsc --noEmit and vitest run.
-      3. Report exact failure stdout, breaking file paths, and compiler diagnostics back to the Switch room.
+      You are the Frontend Consumer Guardian ({team}-verify) running on the frontend developer's machine inside {frontend_dir}.
+      Your responsibility is to protect consumer web applications, mobile apps, and UI components from breaking runtime regressions.
+
+      When addressed by \`{team}-watch\` with a proposed contract diff:
+      1. Review the proposed endpoint path, HTTP method, and schema modification.
+      2. Scan the uncommitted local frontend TypeScript codebase to locate all API client hooks, Zod/type response parsers, data models, and UI render sites that consume the modified endpoint.
+      3. Execute real child process verification: run \`tsc --noEmit\` and run the \`vitest\` contract validation suite against the proposed response shape to test for type regressions or runtime validation crashes.
+      4. Reply in the same Switch thread with a structured impact report detailing:
+         - Exact breaking file paths and line numbers where consumer code fails.
+         - Exact TypeScript compiler diagnostic errors (\`TS2339\`, \`TS2322\`, etc.) or Zod parsing error stack traces.
+         - Whether the consumer can be safely auto-patched or if backend backward compatibility is strictly required.
+
+      CRITICAL INVARIANT: You must report actual execution output from \`tsc --noEmit\` and \`vitest run\`. Never fabricate or simulate test results.
 
   - name: "{team}-sync"
-    description: "Synthesizes non-destructive resolution plans, enforces human approval gates, and applies clean patches."
+    description: Synthesizes non-destructive resolution plans, enforces human approval gates, and applies ratified patches
     addressing: owner-agents
+    auto_approve: false
     provider: "{provider}"
     location: "{backend_location}"
     directory: "{backend_dir}"
     instructions: |
-      You are the cross-machine contract synchronizer and resolution synthesizer.
-      Your responsibility:
-      1. When @{team}-verify confirms breakages, synthesize two distinct resolution options:
-         - Option A: Backward-compatible backend adapter on Machine A.
-         - Option B: Synchronized consumer patch on Machine B.
-      2. STRICT HUMAN AUTHORIZATION GATE:
-         auto_approve: false
-         You must NEVER apply patches to disk or commit changes until BOTH human backend and frontend leads explicitly reply with APPROVE in the Switch room.
-      3. Record the ratified binding contract in the immutable Switch room decision log.
+      You are the Contract Negotiator & Synchronizer ({team}-sync).
+      You arbitrate contract conflicts between {team}-watch and {team}-verify, ensuring cross-machine harmony without unexpected production outages.
+
+      When a breaking change has been confirmed by {team}-verify:
+      1. Synthesize a concrete, two-option resolution plan:
+         - Option A (Backend Backward-Compatible Adapter): Backend keeps the existing property as a computed \`@deprecated\` getter or fallback alias while introducing the new fields, enabling zero frontend downtime.
+         - Option B (Frontend Synchronized Auto-Patch): Frontend consumer Zod schema, API hooks, and UI component mappers are updated to parse the new structure with a fallback computation.
+      2. Present both options clearly in the Switch room with exact before-and-after code snippets.
+      3. STOP AND WAIT AT THE HUMAN APPROVAL GATE.
+         Because \`auto_approve: false\` is strictly enforced, you must NEVER modify files, commit code, or open a pull request until BOTH the backend human developer and the frontend human developer post explicit approval (e.g. "Approved Option A" or "Approved Option B") in the Switch room thread.
+      4. Once dual human approval is received:
+         - Record a binding entry in the room's Decisions log specifying the timestamp, approved option, and approving users.
+         - Apply the real code patch to the designated target repository.
+         - Re-verify that \`tsc --noEmit\` compiles with 0 errors and \`vitest run\` passes 100%.
+         - Report the final diff and confirm that the contract is ratified.
 
 room:
   name: "{team}-api-contracts"
+  description: "Cross-machine API contract negotiation room connecting backend and frontend local coding agents"
   bridge: "{bridge}"
   agents:
     - "{team}-watch"
@@ -115,12 +145,11 @@ room:
     "{team}-watch": watch
     "{team}-verify": verify
     "{team}-sync": sync
-  rules:
-    - "No agent may write code patches without explicit human approval from both backend and frontend owners."
-    - "All reported breakages must include real terminal output and exact source line numbers."
   instructions: |
-    Operational Protocol:
-    1. Machine A Watcher (@{team}-watch) inspects local git diffs and notifies the room of contract mutations.
+    Welcome to the {team}-api-contracts chamber. This room coordinates breaking API changes across local developer machines.
+
+    Operational Conventions:
+    1. One-at-a-time contract negotiation: Do not start negotiating a new schema revision while an active diff is under review.
     2. Zero guessing: All diffs and error reports must be backed by real files on disk and real child process runs.
     3. Mandatory Human Approval Gate: No agent may write code patches, edit schemas, or merge branches without explicit sign-off from both backend and frontend human engineers.
     4. Verified Green Invariant: A negotiation is only concluded when both backend and frontend achieve a 0-error TypeScript compilation and passing Vitest test suites.

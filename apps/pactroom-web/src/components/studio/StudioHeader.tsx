@@ -73,7 +73,7 @@ export const StudioHeader: React.FC<StudioHeaderProps> = ({
         return {
           bg: 'bg-emerald-50 border-emerald-300 text-emerald-800',
           dot: 'bg-emerald-500',
-          text: 'CONTRACT RATIFIED'
+          text: negotiation?.chosenOption ? 'CONTRACT RATIFIED' : 'CONTRACT STANDBY'
         };
       default:
         return {

@@ -11,6 +11,7 @@
     "typecheck": "pnpm -r typecheck",
     "setup:workspaces": "bash scripts/setup-workspaces.sh",
     "validate:template": "tsx scripts/validate-switch-template.ts",
+    "test:audit": "tsx scripts/deep-route-audit.ts",
     "backend:mutate": "pnpm --filter backend-api mutate:breaking",
     "backend:reset": "pnpm --filter backend-api reset:baseline",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules workspaces/*/node_modules apps/*/.next"

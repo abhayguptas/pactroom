@@ -46,6 +46,9 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
     (status === 'AWAITING_HUMAN_DECISION' ||
       status === 'BREAKING_FOUND' ||
       ((negotiation?.breakingCount ?? 0) > 0));
+  const hasChosenOption = Boolean(negotiation?.chosenOption);
+  const isRatified = isResolved && hasChosenOption;
+  const isBaselineStandby = isResolved && !hasChosenOption;
 
   return (
     <div className="flex flex-col h-full bg-[#FCFCFA] overflow-hidden font-sans text-left">
@@ -121,7 +124,7 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
               className={`p-4 rounded-2xl border ${
                 isAwaitingApproval
                   ? 'bg-amber-50 border-amber-300 shadow-soft-sm'
-                  : isResolved
+                  : isRatified
                   ? 'bg-emerald-50 border-emerald-300 shadow-soft-sm'
                   : 'bg-white border-neutral-200 shadow-soft-sm'
               }`}
@@ -137,7 +140,7 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
                     <span className="font-semibold text-neutral-900 text-xs">
                       {isAwaitingApproval
                         ? 'HUMAN SIGN-OFF REQUIRED'
-                        : isResolved
+                        : isRatified
                         ? 'CONTRACT RATIFIED & BINDING'
                         : 'GATE MONITORING ACTIVE'}
                     </span>
@@ -148,14 +151,16 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
                   <p className="text-neutral-700 text-xs font-sans mt-1 leading-relaxed">
                     {isAwaitingApproval
                       ? 'Because auto_approve is strictly false, @pact-sync is locked and cannot alter files without explicit dual engineering approval.'
-                      : 'All contract changes must be approved by both Backend Owner and Frontend Owner before disk writes.'}
+                      : isRatified
+                      ? 'Mutual human consensus achieved. Contract specifications are locked and binding across repositories.'
+                      : 'Dual-approval gate is active. Contract changes remain in standby until changes are detected.'}
                   </p>
                 </div>
               </div>
             </div>
 
             {/* SCENARIO 1: Contract Ratified & Resolved - Show clean Ratified summary, NO approval buttons */}
-            {isResolved && (
+            {isRatified && (
               <div className="p-4 rounded-2xl bg-white border border-emerald-300 shadow-soft-sm space-y-3 font-sans">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -297,7 +302,7 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
             )}
 
             {/* SCENARIO 3: Clean Baseline Monitoring - Standby state */}
-            {!isResolved && !isAwaitingApproval && (
+            {(isBaselineStandby || (!isRatified && !isAwaitingApproval)) && (
               <div className="p-6 rounded-2xl bg-white border border-neutral-200 text-center space-y-2 shadow-soft-sm font-sans">
                 <ShieldCheck className="w-8 h-8 text-emerald-600 mx-auto" />
                 <div className="font-semibold text-neutral-800 text-xs font-sans">Gate Monitoring Baseline</div>
@@ -310,12 +315,12 @@ export const PanelDecisionsGate: React.FC<PanelDecisionsGateProps> = ({
             {/* Approver Signatures */}
             <div className="p-3 rounded-2xl bg-white border border-neutral-200 flex items-center justify-between text-[11px] text-neutral-600 shadow-soft-sm font-sans">
               <div className="flex items-center gap-2">
-                <UserCheck className={`w-3.5 h-3.5 ${isResolved ? 'text-emerald-600' : 'text-sky-600'}`} />
-                <span>Backend Approver: <strong className="font-mono text-neutral-800">alex.be</strong> {isResolved ? '(Signed)' : '(Required)'}</span>
+                <UserCheck className={`w-3.5 h-3.5 ${isRatified ? 'text-emerald-600' : 'text-neutral-400'}`} />
+                <span>Backend Approver: <strong className="font-mono text-neutral-800">alex.be</strong> {isRatified ? '(Signed)' : '(Standby)'}</span>
               </div>
               <div className="flex items-center gap-2">
-                <UserCheck className={`w-3.5 h-3.5 ${isResolved ? 'text-emerald-600' : 'text-emerald-600'}`} />
-                <span>Frontend Approver: <strong className="font-mono text-neutral-800">sam.fe</strong> {isResolved ? '(Signed)' : '(Required)'}</span>
+                <UserCheck className={`w-3.5 h-3.5 ${isRatified ? 'text-emerald-600' : 'text-neutral-400'}`} />
+                <span>Frontend Approver: <strong className="font-mono text-neutral-800">sam.fe</strong> {isRatified ? '(Signed)' : '(Standby)'}</span>
               </div>
             </div>
           </div>

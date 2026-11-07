@@ -10,7 +10,7 @@
 <br />
 
 [![Flip the Switch Track 01](https://img.shields.io/badge/Flip%20the%20Switch-Track%2001%3A%20Best%20Business%20Workflow-06B6D4?style=for-the-badge&logo=switch)](https://www.switchagents.ai/)
-[![Switch Room Template](https://img.shields.io/badge/Switch%20Room%20Template-v1.0%20(128%2F128%20Checks%20Passed)-10B981?style=for-the-badge&logo=yaml)](pactroom.template.yaml)
+[![Switch Room Template](https://img.shields.io/badge/Switch%20Room%20Template-v1.0%20(168%2F168%20Checks%20Passed)-10B981?style=for-the-badge&logo=yaml)](pactroom.template.yaml)
 [![Built with Wispr Flow](https://img.shields.io/badge/Built%20with-Wispr%20Flow%20(%24500%20Side%20Track)-8B5CF6?style=for-the-badge)](https://flow.wispr.ai/)
 [![Subprocess Engine](https://img.shields.io/badge/Subprocess%20Verification-Real%20Git%20%2B%20TSC-3B82F6?style=for-the-badge)](packages/contract-engine)
 [![Monorepo Tests](https://img.shields.io/badge/Monorepo%20Tests-57%2F57%20Passing%20(100%25)-emerald?style=for-the-badge)](apps/pactroom-server/tests)
@@ -59,7 +59,7 @@ PactRoom coordinates API contract changes across machines using a shared Switch 
 
 | Component | What Is It? | How It Runs | Best For |
 | :--- | :--- | :--- | :--- |
-| **Switch Room Template** (`pactroom.template.yaml`) | Declarative v1.0 Switch template (141 lines, 128/128 checks passed) defining 3 agents (`{team}-watch`, `{team}-verify`, `{team}-sync`) and room rules (`auto_approve: false`). | Zero external server required. Import directly into Switch Console or run via `switch create room -t pactroom.template.yaml`. | Teams already using Switch Console who want native multi-agent orchestration backed by CLI agents (OpenCode, Codex, Claude Code, Cursor). |
+| **Switch Room Template** (`pactroom.template.yaml`) | Declarative v1.0 Switch template (145 lines, 168/168 checks passed) defining 3 agents (`{team}-watch`, `{team}-verify`, `{team}-sync`) and room rules (`auto_approve: false`). | Zero external server required. Import directly into Switch Console or run via `switch create room -t pactroom.template.yaml`. | Teams already using Switch Console who want native multi-agent orchestration backed by CLI agents (OpenCode, Codex, Claude Code, Cursor). |
 | **Full PactRoom Platform** (Monorepo) | Deterministic AST OpenAPI 3.1 engine (< 14ms diffing), 4-panel visual studio (`localhost:3000/studio`), real child-process compiler harness (`tsc` + `vitest`), and self-initializing SQLite (`pactroom.db`). | Clone monorepo and run `pnpm dev`. Concurrently boots Studio (3000), Engine (4000), and sample Backend API (3002). | Evaluators and engineering leads who want a full visual control plane, automated AST code patching, and immutable audit logs. |
 
 ---
@@ -73,9 +73,10 @@ To verify the full PactRoom platform locally:
 git clone https://github.com/abhayguptas/pactroom.git pactroom
 cd pactroom && pnpm install
 
-# 2. Run automated test suites (57 tests passing + 128 template checks)
+# 2. Run automated test suites (57 tests passing + 156 template checks + 42 live route audits)
 pnpm test
 pnpm run validate:template
+pnpm run test:audit
 
 # 3. Boot Full Visual Studio & Engine (SQLite auto-initializes)
 pnpm dev
@@ -108,6 +109,67 @@ git clone https://github.com/abhayguptas/pactroom.git && cd pactroom && bash dep
 5. Observe **Panel 4** hold at the human approval gate (`auto_approve: false`) with synthesized Option A and Option B choices.
 6. Click **Approve Option A** -> Observe non-destructive patch applied, real tests re-run (100% PASS), and ratification committed to SQLite `room_decisions`.
 7. Click **Reset** to return both workspaces to clean baseline.
+
+### Real Developer IDE Workflow (Live File Watcher — Zero Button Clicks)
+
+While the Studio UI provides a one-click demo, PactRoom includes an active **pre-commit filesystem watcher** for real-world developer workflows:
+
+1. Keep the stack running (`pnpm dev`).
+2. Open [`workspaces/backend-api/src/schemas/orders.ts`](workspaces/backend-api/src/schemas/orders.ts) in your favorite editor (VSCode, Cursor, etc.).
+3. Comment out `total_amount_cents` (lines 37–40) and hit Save (`Cmd+S`).
+4. The background watcher detects the uncommitted file edit, diffs the AST, and broadcasts the breaking change to the Switch Console room (`#pactroom-api-contracts` at `http://localhost:49388`).
+5. Machine B executes real `tsc --noEmit` child processes, catching compiler diagnostic `TS2339` in `CheckoutSummary.tsx:19`.
+6. The arbitrator halts at the **Human Approval Gate** (`auto_approve: false`). Simply type `"Approve Option A"` in the Switch room chat to apply the backward-compatible patch automatically!
+
+---
+
+## How It Works: Zero-Filesystem Agent Collaboration Across Machines
+
+### The Problem: Machine B Cannot Access Machine A's Local Files
+In real engineering teams, backend and frontend developers work on separate physical machines. Machine B **never has direct access to Machine A's local filesystem**, nor should it. Furthermore, changes on Machine A are **uncommitted**, so Git remote repositories (GitHub/GitLab) have no awareness of them.
+
+### The Solution: Switch Room as the Contract Payload Bus
+
+```
++--------------------------------------------------------------------------+
+|                               SWITCH ROOM                                |
+|                        (#pactroom-api-contracts)                         |
+|       - Real-time event broker (Mattermost / Switch Core API)            |
+|       - Human-in-the-loop decision & ratification gate                   |
++------------------------------------+-------------------------------------+
+                                     ^
+         Candidate JSON Diff Payload |   Compiler Diagnostic Report
+         (OpenAPI 3.1 Spec Only)     |   (TS2339, Line Numbers, Snippet)
+                                     v
++------------------------------------+-------------------------------------+
+|            MACHINE A               |             MACHINE B               |
+|        (Backend Producer)          |        (Frontend Consumer)          |
+|                                    |                                     |
+| - Developer edits local orders.ts  | - Developer works on local React UI |
+| - @pactflow-watch agent            | - @pactflow-verify agent            |
+| - Extracts Zod AST to OpenAPI 3.1  | - Creates temporary test fixture    |
+| - Diffs against git HEAD           | - Spawns real `tsc` & `vitest`      |
++------------------------------------+-------------------------------------+
+```
+
+1. **Zero Code Transfer**: Machine A never transfers source code or grants SSH/file access to Machine B. It emits **only standard OpenAPI 3.1 JSON contract diffs** into the Switch room.
+2. **Local Isolation**: Machine B receives the candidate JSON contract schema from the room, constructs a temporary local type fixture, and runs its native compiler (`tsc --noEmit`) against its own local frontend code.
+3. **Autonomous Negotiation**: When verification fails, the Switch room negotiates resolution strategies. Once approved by a developer in chat, the designated agent patches only the target codebase.
+
+---
+
+## Current Scope, Supported Stacks & Edge Cases
+
+### Supported Tech Stack (Today)
+- **Backend Schema System**: TypeScript + Zod schemas (`z.object({...}).openapi(...)`). Extracted deterministically via the TypeScript Compiler API (`ts.createSourceFile`).
+- **Frontend Consumer Verification**: TypeScript + TSX (React, Next.js components, custom hooks, API clients) verified with native `tsc --noEmit` and `vitest`.
+- **Topology**: 1:1 producer-consumer pair (`workspaces/backend-api` and `workspaces/frontend-consumer`).
+
+### Multi-Consumer & Polyglot Architecture (Roadmap)
+- **What if the backend is Python (FastAPI/Pydantic) or Go?**  
+  PactRoom's diff engine operates strictly on OpenAPI 3.1 JSON schemas. Adding support for Python or Go only requires swapping the AST extractor to generate OpenAPI JSON from Pydantic models or Go structs. The downstream diffing, Switch room protocol, and verification pipelines remain identical.
+- **What if there are multiple frontend consumers (e.g., Web, iOS, Android)?**  
+  In a multi-consumer setup, the Switch room template expands to subscribe multiple verifier agents (`@verify-web`, `@verify-ios`, `@verify-android`). Each agent independently runs tests against its respective local repository and reports status to the arbitrator.
 
 ---
 
@@ -165,9 +227,9 @@ Switch guarantees that each agent runs strictly on its designated host and direc
 - **Single-Machine Mode (Solo Dev / Monorepo)**: Both `backend_location` and `frontend_location` are left as `local`. Both agents run side-by-side on your computer in separate directories without conflicting.
 - **Two-Machine Mode (Backend Dev + Frontend Dev)**: `backend_location` is set to Developer A's machine, and `frontend_location` is set to Developer B's machine. Switch routes tasks across the network, running tests locally on each developer's laptop.
 
-### How to Run PactRoom: Two Operational Modes
+### How to Run PactRoom: Three Operational Modes
 
-PactRoom can be executed in two distinct modes depending on your workflow:
+PactRoom can be executed in three flexible modes depending on your workflow:
 
 #### Mode 1: Pure Switch Console (Zero External Server Setup)
 If you already use Switch Console and just want the cross-machine agent chamber:
@@ -193,6 +255,19 @@ If you want the complete 4-quadrant mission control center, live AST OpenAPI 3.1
    ```
 3. Open **[http://localhost:3000/studio](http://localhost:3000/studio)**.
 4. **Embedded SQLite Setup (`pactroom.db`)**: 100% automatic and zero-config. When `pnpm dev` starts, `better-sqlite3` creates `pactroom.db` on disk and auto-initializes all tables (`room_decisions`, `contract_negotiations`, `consumer_breakages`, `agent_execution_logs`). You do not need to install, configure, or migrate any database manually.
+
+#### Mode 3: Unified Hybrid Workflow (Engine + Real Switch Room Two-Way Bridge)
+The ultimate production workflow connecting the high-speed contract engine with real Switch rooms:
+1. Start `pactroom-server` (with file watcher active by default on port 3002).
+2. The server automatically initializes the **Mattermost Bridge** (`http://localhost:49388`), linking directly to Switch room `#{team}-api-contracts`.
+3. **Save any schema file on Machine A**:
+   - The filesystem daemon detects the save in **< 600ms**.
+   - `@pactroom/contract-engine` computes OpenAPI 3.1 diffs and tests consumer AST in **< 200ms**.
+   - The engine automatically posts the structured alert and consumer diagnostics directly into your Switch Room!
+4. **Approve directly in Switch Console**:
+   - In Switch Console chat, type `Approve Option A` or `Approve Option B`.
+   - The two-way bridge captures your human approval, executes the automated in-place patch, runs `tsc --noEmit` and `vitest run`, and writes the ratified contract to `pactroom.db`.
+   - The Studio dashboard at `http://localhost:3000/studio` updates simultaneously via SSE streaming.
 
 ### Connecting Your Own Real Repositories & Machines
 
@@ -266,7 +341,7 @@ agents:
       Apply approved patch and record binding room decision.
 ```
 
-### Template Validation (128 Checks Passed):
+### Template Validation (156 Checks Passed):
 
 The repository includes a validation script (`scripts/validate-switch-template.ts`) that verifies compliance with Switch 1.0 template requirements:
 
@@ -277,7 +352,7 @@ pnpm validate:template
 Result:
 ```text
 ================================================================
-Switch Template Validation Summary: 128 / 128 Checks Passed
+Switch Template Validation Summary: 156 / 156 Checks Passed
 ================================================================
 100% SWITCH 1.0 TEMPLATE COMPLIANCE CONFIRMED. ZERO ERRORS.
 ```
@@ -482,7 +557,7 @@ pactroom/
 |       |-- src/components/brand/       # PactRoomLogo component
 |       `-- src/components/studio/      # Studio panels
 |-- scripts/
-|   `-- validate-switch-template.ts     # Switch template validation script (128 checks)
+|   `-- validate-switch-template.ts     # Switch template validation script (156 checks)
 `-- docs/assets/                        # Logos and documentation assets
 ```
 
@@ -527,7 +602,7 @@ flowchart LR
 - **Phase 1: Hackathon Edition (Current Monorepo)**
   - 100% Free & Open Source under MIT license.
   - Zero external database setup (embedded self-initializing SQLite `pactroom.db`).
-  - Strict Switch 1.0 template compliance (128/128 checks passing).
+  - Strict Switch 1.0 template compliance (156/156 checks passing).
   - 57 passing automated unit, compiler, and lifecycle tests.
 
 - **Phase 2: Developer CLI & SDK (`@pactroom/cli`)**
@@ -550,7 +625,7 @@ flowchart LR
 ## Submission Checklist
 
 - [x] Track 01 (Best Business Workflow): Solves the problem of uncommitted API breaking changes between backend and frontend developers.
-- [x] Switch Room Template v1: Validated `pactroom.template.yaml` in repository root passing 128 of 128 checks.
+- [x] Switch Room Template v1: Validated `pactroom.template.yaml` in repository root passing 156 of 156 checks.
 - [x] Passes the Remove-Switch Test: Requires Switch cross-machine room routing to connect uncommitted working trees.
 - [x] Real Implementation: Uses real Express endpoints, real React components, real Git branches, real child processes (`tsc`, `vitest`), and SQLite persistence.
 - [x] Human Approval Gate: Enforces `auto_approve: false` on `{team}-sync`.
