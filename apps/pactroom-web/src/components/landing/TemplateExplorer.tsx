@@ -40,6 +40,11 @@ params:
     label: AI Coding Agent Provider
     description: Which coding agent backs the agents (Codex, OpenCode, Claude Code, Cursor, Antigravity).
     default: [codex, opencode, claude, cursor, antigravity]
+  machine:
+    type: machine
+    label: Machine (Physical Host)
+    description: The machine the agents run on (defaults to this computer).
+    default: [$first]
   backend_dir:
     type: directory
     label: Backend Repository (Machine A)
@@ -74,6 +79,7 @@ agents:
     description: Inspects uncommitted local backend changes, diffs OpenAPI schemas, and flags breaking modifications
     addressing: anyone
     provider: "{provider}"
+    machine: "{machine}"
     location: "{backend_location}"
     directory: "{backend_dir}"
     instructions: |
@@ -81,7 +87,7 @@ agents:
       Your sole mission is to ensure that no API contract change or schema modification is made in isolation without the frontend consumer's visibility.
 
       Whenever you wake up, receive a message, or detect local branch activity:
-      1. Inspect uncommitted local backend changes using \`git diff\`, \`git status\`, and the OpenAPI 3.1 contract analyzer against the baseline contract. Check route handlers, DTO models, serializers, and Zod/Pydantic schemas.
+      1. Inspect uncommitted local backend changes using \`git diff\`, \`git status\`, or the local PactRoom Contract Engine (\`curl -s -X POST http://localhost:3002/api/scan\`). Check route handlers, DTO models, serializers, and Zod/Pydantic schemas.
       2. Summarize any endpoint or DTO modification in one clear line (e.g. "OrderSchema: removed \`total_amount\`, added \`subtotal\` (number) and \`tax_amount\` (number)").
       3. Classify whether the change is backward-compatible (e.g. optional query param added, non-breaking documentation update) or breaking (e.g. field removed, field renamed, type narrowed, status code altered, or required request body/query parameter added).
       4. If the change is breaking: immediately address \`{team}-verify\` by name in the Switch room using \`post_message\` or \`send_targeted_message\`. Provide the exact uncommitted git diff, the impacted HTTP method and route path, and the before/after response or request payload shape.
@@ -92,6 +98,7 @@ agents:
     description: Validates contract diffs against the frontend consumer codebase using tsc --noEmit and Vitest
     addressing: owner-agents
     provider: "{provider}"
+    machine: "{machine}"
     location: "{frontend_location}"
     directory: "{frontend_dir}"
     instructions: |
@@ -100,12 +107,13 @@ agents:
 
       When addressed by \`{team}-watch\` with a proposed contract diff:
       1. Review the proposed endpoint path, HTTP method, and schema modification.
-      2. Scan the uncommitted local frontend TypeScript codebase to locate all API client hooks, Zod/type response parsers, data models, and UI render sites that consume the modified endpoint.
+      2. Scan the uncommitted local frontend TypeScript codebase to locate all API client hooks, Zod/type response parsers, data models, and UI render sites that consume the modified endpoint. You may query the PactRoom Engine at \`curl -s -X POST http://localhost:3002/api/verify\` or inspect files on disk.
       3. Execute real child process verification: run \`tsc --noEmit\` and run the \`vitest\` contract validation suite against the proposed response shape to test for type regressions or runtime validation crashes.
       4. Reply in the same Switch thread with a structured impact report detailing:
          - Exact breaking file paths and line numbers where consumer code fails.
          - Exact TypeScript compiler diagnostic errors (\`TS2339\`, \`TS2322\`, etc.) or Zod parsing error stack traces.
          - Whether the consumer can be safely auto-patched or if backend backward compatibility is strictly required.
+         - Always conclude your report by explicitly tagging \`@{team}-sync\` by name (e.g. "@{team}-sync Please arbitrate and synthesize Option A vs Option B.") so the synchronizer wakes up automatically.
 
       CRITICAL INVARIANT: You must report actual execution output from \`tsc --noEmit\` and \`vitest run\`. Never fabricate or simulate test results.
 
@@ -114,6 +122,7 @@ agents:
     addressing: owner-agents
     auto_approve: false
     provider: "{provider}"
+    machine: "{machine}"
     location: "{backend_location}"
     directory: "{backend_dir}"
     instructions: |
@@ -126,10 +135,10 @@ agents:
          - Option B (Frontend Synchronized Auto-Patch): Frontend consumer Zod schema, API hooks, and UI component mappers are updated to parse the new structure with a fallback computation.
       2. Present both options clearly in the Switch room with exact before-and-after code snippets.
       3. STOP AND WAIT AT THE HUMAN APPROVAL GATE.
-         Because \`auto_approve: false\` is strictly enforced, you must NEVER modify files, commit code, or open a pull request until BOTH the backend human developer and the frontend human developer post explicit approval (e.g. "Approved Option A" or "Approved Option B") in the Switch room thread.
-      4. Once dual human approval is received:
+         Because \`auto_approve: false\` is strictly enforced, you must NEVER modify files, commit code, or open a pull request until explicit human approval (e.g. "Approved Option A" or "Approved Option B") is posted in the Switch room thread. A single human approval (from any user in the room, or on behalf of both teams) immediately satisfies the gate. Do not demand dual sign-offs.
+      4. Once human approval is received:
          - Record a binding entry in the room's Decisions log specifying the timestamp, approved option, and approving users.
-         - Apply the real code patch to the designated target repository.
+         - Apply the real code patch to the designated target repository. You may call the PactRoom engine at \`POST http://localhost:3002/api/patch/apply\` with option OPTION_A or OPTION_B, or apply changes directly to disk.
          - Re-verify that \`tsc --noEmit\` compiles with 0 errors and \`vitest run\` passes 100%.
          - Report the final diff and confirm that the contract is ratified.
 
@@ -151,7 +160,7 @@ room:
     Operational Conventions:
     1. One-at-a-time contract negotiation: Do not start negotiating a new schema revision while an active diff is under review.
     2. Zero guessing: All diffs and error reports must be backed by real files on disk and real child process runs.
-    3. Mandatory Human Approval Gate: No agent may write code patches, edit schemas, or merge branches without explicit sign-off from both backend and frontend human engineers.
+    3. Mandatory Human Approval Gate: No agent may write code patches, edit schemas, or merge branches without explicit human sign-off (e.g. 'Approved Option A' or 'Approved Option B'). A single human approval immediately satisfies the gate; dual sign-offs are not required.
     4. Verified Green Invariant: A negotiation is only concluded when both backend and frontend achieve a 0-error TypeScript compilation and passing Vitest test suites.
 
 kickoff: |
