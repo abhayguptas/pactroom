@@ -1,7 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
 import {
   diffOpenApiSchemas,
   generateMigrationPatches,
@@ -23,55 +21,11 @@ import {
   runVitestSuite,
   executeChildProcess
 } from '../runners/process-runner.js';
-import { executeAutoPatch, AutoPatchResult } from '../patch/auto-patcher.js';
+import { executeAutoPatch, AutoPatchResult, BACKEND_BASELINE_ORDERS_SCHEMA } from '../patch/auto-patcher.js';
 import { postToSwitchRoomAs, isBridgeAvailable } from './mattermost-bridge.js';
+import { getDiscoveredWorkspaces } from '../workspaces.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '../../../../');
 
-function getDiscoveredWorkspaces(): { backend: string; frontend: string } {
-  if (process.env.NODE_ENV === 'test') {
-    return {
-      backend: 'workspaces/backend-api',
-      frontend: 'workspaces/frontend-consumer'
-    };
-  }
-  let be = process.env.BACKEND_WORKSPACE;
-  let fe = process.env.FRONTEND_WORKSPACE;
-  if (!be || be === 'workspaces/backend-api' || !fe || fe === 'workspaces/frontend-consumer') {
-    try {
-      if (!be || be === 'workspaces/backend-api') {
-        const foundBe = execSync(
-          `PGPASSWORD=gcUuJleU2slnHIxlKIPzXpOD73xmuGZ3 psql -h 127.0.0.1 -p 60016 -U postgres -d switch -t -A -c "SELECT definition->>'directory' FROM agent_definitions WHERE definition->>'directory' LIKE '%backend%' ORDER BY updated_at DESC LIMIT 1;"`,
-          { timeout: 1500, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
-        ).trim();
-        if (foundBe && fs.existsSync(foundBe)) be = foundBe;
-      }
-      if (!fe || fe === 'workspaces/frontend-consumer') {
-        const foundFe = execSync(
-          `PGPASSWORD=gcUuJleU2slnHIxlKIPzXpOD73xmuGZ3 psql -h 127.0.0.1 -p 60016 -U postgres -d switch -t -A -c "SELECT definition->>'directory' FROM agent_definitions WHERE definition->>'directory' LIKE '%frontend%' ORDER BY updated_at DESC LIMIT 1;"`,
-          { timeout: 1500, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
-        ).trim();
-        if (foundFe && fs.existsSync(foundFe)) fe = foundFe;
-      }
-    } catch {}
-  }
-  return {
-    backend: be || 'workspaces/backend-api',
-    frontend: fe || 'workspaces/frontend-consumer'
-  };
-}
-
-const discoveredWorkspaces = getDiscoveredWorkspaces();
-const backendWorkspace = discoveredWorkspaces.backend;
-const frontendWorkspace = discoveredWorkspaces.frontend;
-const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
-  ? backendWorkspace
-  : path.resolve(rootDir, backendWorkspace);
-const frontendWorkspaceDir = path.isAbsolute(frontendWorkspace)
-  ? frontendWorkspace
-  : path.resolve(rootDir, frontendWorkspace);
 
 export type NegotiationStatus =
   | 'DETECTED'
@@ -262,11 +216,12 @@ export class SwitchBridge {
    * Room Command: !list-agents
    */
   async handleListAgentsCommand(): Promise<string> {
+    const { backend, frontend } = getDiscoveredWorkspaces();
     const output = `
 📋 **Registered Agents in \`${this.teamSlug}-api-contracts\`**:
-- **\`${this.teamSlug}-watch\`**: Machine A Backend Agent (Addressing: \`anyone\`, Location: \`local\`, Dir: \`workspaces/backend-api\`)
+- **\`${this.teamSlug}-watch\`**: Machine A Backend Agent (Addressing: \`anyone\`, Location: \`local\`, Dir: \`${backend}\`)
   *Role*: Inspects uncommitted local changes, extracts OpenAPI schemas, summarizes DTO modifications, classifies breaking changes.
-- **\`${this.teamSlug}-verify\`**: Machine B Frontend Agent (Addressing: \`owner-agents\`, Location: \`local\`, Dir: \`workspaces/frontend-consumer\`)
+- **\`${this.teamSlug}-verify\`**: Machine B Frontend Agent (Addressing: \`owner-agents\`, Location: \`local\`, Dir: \`${frontend}\`)
   *Role*: Validates candidate schemas against local TypeScript codebase using real \`tsc --noEmit\` and \`vitest\`.
 - **\`${this.teamSlug}-sync\`**: Cross-Machine Arbitrator (Addressing: \`owner-agents\`, \`auto_approve: false\`)
   *Role*: Synthesizes Option A vs Option B resolution plan, stops at human approval gate, executes auto-patches upon approval.
@@ -307,14 +262,15 @@ export class SwitchBridge {
    * Room Command: !list-documents
    */
   async handleListDocumentsCommand(): Promise<string> {
+    const { backend, frontend } = getDiscoveredWorkspaces();
     const decisionsCount = sqlite.prepare('SELECT COUNT(*) as count FROM room_decisions').get() as { count: number };
     const breakagesCount = sqlite.prepare('SELECT COUNT(*) as count FROM consumer_breakages').get() as { count: number };
 
     const output = `
 📄 **PactRoom Contract Documents & Artifacts**:
 - **OpenAPI 3.1 Live Spec**: \`GET http://localhost:3001/openapi.json\` (Interactive Swagger at \`/docs\`)
-- **Backend Schema DTOs**: \`workspaces/backend-api/src/schemas/orders.ts\`
-- **Frontend Consumer Client**: \`workspaces/frontend-consumer/src/schemas/orders.ts\`
+- **Backend Schema DTOs**: \`${path.join(backend, 'src/schemas/orders.ts')}\`
+- **Frontend Consumer Client**: \`${path.join(frontend, 'src/schemas/orders.ts')}\`
 - **Switch Template Spec**: \`pactroom.template.yaml\` (Switch v1 specification)
 - **Room Decisions Log**: ${decisionsCount?.count || 0} binding ratified entries
 - **Consumer Breakages Recorded**: ${breakagesCount?.count || 0} active diagnostics
@@ -410,6 +366,7 @@ export class SwitchBridge {
    * classifies breaking vs non-breaking changes.
    */
   async runWatchAgent(changedFile?: string): Promise<SchemaDiffResult> {
+    const { backend: backendWorkspace, frontend: frontendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     const startTime = Date.now();
     const negotiationId = `neg_${Date.now()}`;
     const now = new Date().toISOString();
@@ -512,8 +469,8 @@ export class SwitchBridge {
 
       // Generate suggested patches
       const patches = generateMigrationPatches(diffResult.changes, {
-        frontendZodFilePath: 'workspaces/frontend-consumer/src/schemas/orders.ts',
-        backendRouterFilePath: 'workspaces/backend-api/src/routes/v1.ts'
+        frontendZodFilePath: path.join(frontendWorkspace, 'src/schemas/orders.ts'),
+        backendRouterFilePath: path.join(backendWorkspace, 'src/routes/v1.ts')
       });
       this.activeNegotiation.patches = patches;
 
@@ -556,6 +513,7 @@ Addressing **@${this.teamSlug}-verify** on Machine B with candidate schema shape
    * records exact file paths, line numbers, and diagnostics in ConsumerBreakages.
    */
   async runVerifyAgent(): Promise<{ passed: boolean; breakagesCount: number }> {
+    const { backendDir: backendWorkspaceDir, frontend: frontendWorkspace, frontendDir: frontendWorkspaceDir } = getDiscoveredWorkspaces();
     const startTime = Date.now();
     const negotiationId = this.activeNegotiation?.id || 'neg_default';
     const now = new Date().toISOString();
@@ -575,7 +533,7 @@ Addressing **@${this.teamSlug}-verify** on Machine B with candidate schema shape
       `${this.teamSlug}-verify (Frontend Machine B)`,
       'validator',
       `🔍 **Verifying Candidate Contract on Machine B**:
-Scanning \`workspaces/frontend-consumer\` AST and executing real \`tsc --noEmit\` and \`vitest run\` child processes against uncommitted schema...`
+Scanning \`${frontendWorkspace}\` AST and executing real \`tsc --noEmit\` and \`vitest run\` child processes against uncommitted schema...`
     );
 
     // Extract live candidate schema directly from backend disk
@@ -767,6 +725,7 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
    * Synthesizes concrete resolution plan (Option A vs Option B) and stops at Human Gate.
    */
   async runSyncAgent(): Promise<void> {
+    const { backend: backendWorkspace, frontend: frontendWorkspace } = getDiscoveredWorkspaces();
     const negotiationId = this.activeNegotiation?.id || 'neg_default';
     const now = new Date().toISOString();
 
@@ -786,12 +745,12 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
 I have synthesized two concrete non-breaking resolution strategies:
 
 ### **Option A: Backend Backward-Compatible Adapter (Recommended)**
-- **Target**: \`workspaces/backend-api/src/schemas/orders.ts\`
+- **Target**: \`${path.join(backendWorkspace, 'src/schemas/orders.ts')}\`
 - **Strategy**: Backend dual-writes both \`pricing_breakdown\` and legacy \`total_amount_cents\` in response payload; expands \`status\` enum to accept both \`settled\` and \`completed\`.
 - **Impact**: Zero code changes required on Machine B; frontend continues to compile immediately.
 
 ### **Option B: Synchronized Frontend Consumer Patch**
-- **Target**: \`workspaces/frontend-consumer/src/schemas/orders.ts\` & \`CheckoutSummary.tsx\`
+- **Target**: \`${path.join(frontendWorkspace, 'src/schemas/orders.ts')}\` & \`CheckoutSummary.tsx\`
 - **Strategy**: Frontend synchronizes to the v2 specification, reading \`pricing_breakdown.amount_minor\` with fallback.
 - **Impact**: Codebase moves to modern schema structure; both machines commit synchronized changes.
 
@@ -910,6 +869,7 @@ Cross-machine contracts are now synchronized and clean.`
    * Run workspace verification trigger
    */
   async runWorkspaceVerifications(negotiationId?: string) {
+    const { backend: backendWorkspace, frontend: frontendWorkspace } = getDiscoveredWorkspaces();
     const id = negotiationId || this.activeNegotiation?.id;
     const backendTsc = await runTscVerification(backendWorkspace, id);
     const backendVitest = await runVitestSuite(backendWorkspace, id);
@@ -939,8 +899,17 @@ Cross-machine contracts are now synchronized and clean.`
   }
 
   async resetAllWorkspacesToBaseline(): Promise<boolean> {
+    const { backend: backendWorkspace, backendDir: backendWorkspaceDir, frontendDir: frontendWorkspaceDir } = getDiscoveredWorkspaces();
     // 1. Reset backend workspace to clean baseline
-    await executeChildProcess('node', backendWorkspace, 'npx', ['tsx', 'scripts/reset-baseline.ts']);
+    const backendResetScript = path.resolve(backendWorkspaceDir, 'scripts/reset-baseline.ts');
+    if (fs.existsSync(backendResetScript)) {
+      await executeChildProcess('node', backendWorkspace, 'npx', ['tsx', 'scripts/reset-baseline.ts']);
+    } else {
+      const backendOrdersSchemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
+      if (fs.existsSync(backendOrdersSchemaFile)) {
+        fs.writeFileSync(backendOrdersSchemaFile, BACKEND_BASELINE_ORDERS_SCHEMA, 'utf-8');
+      }
+    }
 
     // 2. Reset frontend workspace to clean baseline
     const frontendOrdersSchemaFile = path.resolve(frontendWorkspaceDir, 'src/schemas/orders.ts');

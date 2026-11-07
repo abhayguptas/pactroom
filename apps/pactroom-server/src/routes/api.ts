@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { sqlite } from '../db/database.js';
 import { sseManager } from '../events/sse-manager.js';
 import { switchBridge } from '../protocol/switch-bridge.js';
@@ -13,15 +12,7 @@ import {
   runVitestSuite,
   executeChildProcess
 } from '../runners/process-runner.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '../../../../');
-const backendWorkspace = process.env.BACKEND_WORKSPACE || 'workspaces/backend-api';
-const frontendWorkspace = process.env.FRONTEND_WORKSPACE || 'workspaces/frontend-consumer';
-const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
-  ? backendWorkspace
-  : path.resolve(rootDir, backendWorkspace);
+import { getDiscoveredWorkspaces } from '../workspaces.js';
 
 export const apiRouter = Router();
 
@@ -46,6 +37,7 @@ apiRouter.get('/events', (req: Request, res: Response) => {
 
 apiRouter.get('/status', async (_req: Request, res: Response) => {
   try {
+    const { backend: backendWorkspace, frontend: frontendWorkspace } = getDiscoveredWorkspaces();
     const room = sqlite.prepare('SELECT * FROM switch_rooms LIMIT 1').get();
     const breakagesCount = sqlite.prepare('SELECT COUNT(*) as count FROM consumer_breakages').get() as { count: number };
     const decisionsCount = sqlite.prepare('SELECT COUNT(*) as count FROM room_decisions').get() as { count: number };
@@ -451,6 +443,7 @@ apiRouter.post('/patch/revert', async (req: Request, res: Response) => {
 // POST /api/backend/mutate - Introduce real uncommitted breaking change on disk
 apiRouter.post('/backend/mutate', async (_req: Request, res: Response) => {
   try {
+    const { backend: backendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     // Execute real mutate-breaking script on backend workspace
     await executeChildProcess('node', backendWorkspace, 'npx', ['tsx', 'scripts/mutate-breaking.ts']);
 
@@ -479,6 +472,7 @@ apiRouter.post('/backend/mutate', async (_req: Request, res: Response) => {
 // POST /api/backend/reset - Restore clean baseline state on disk
 apiRouter.post('/backend/reset', async (_req: Request, res: Response) => {
   try {
+    const { backend: backendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     // Reset all workspaces to clean baseline
     await switchBridge.resetAllWorkspacesToBaseline();
 
@@ -507,6 +501,7 @@ apiRouter.post('/backend/reset', async (_req: Request, res: Response) => {
 // GET /api/backend/git - Real git status and git diff of backend workspace
 apiRouter.get('/backend/git', async (_req: Request, res: Response) => {
   try {
+    const { backend: backendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     const gitStatus = await runGitStatus(backendWorkspace);
     const gitDiff = await runGitDiff(backendWorkspace);
     const schemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
@@ -532,6 +527,7 @@ apiRouter.get('/backend/git', async (_req: Request, res: Response) => {
 // GET /api/backend/schema - Current orders schema source code
 apiRouter.get('/backend/schema', (_req: Request, res: Response) => {
   try {
+    const { backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     const schemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
     const schemaSource = fs.existsSync(schemaFile) ? fs.readFileSync(schemaFile, 'utf-8') : '';
     res.json({ schemaSource });
@@ -548,6 +544,7 @@ apiRouter.post('/backend/schema', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'schemaContent string is required' });
     }
 
+    const { backend: backendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     const schemaFile = path.resolve(backendWorkspaceDir, 'src/schemas/orders.ts');
     fs.writeFileSync(schemaFile, schemaContent, 'utf-8');
 
@@ -575,6 +572,7 @@ apiRouter.post('/backend/schema', async (req: Request, res: Response) => {
 // GET /api/frontend/diagnostics - Real tsc --noEmit, vitest, and AST diagnostics
 apiRouter.get('/frontend/diagnostics', async (_req: Request, res: Response) => {
   try {
+    const { frontend: frontendWorkspace } = getDiscoveredWorkspaces();
     const activeNeg = switchBridge.getActiveNegotiation();
     const hasActiveBreaking = activeNeg && activeNeg.status !== 'RESOLVED' && (activeNeg.breakingCount > 0 || activeNeg.breakagesCount > 0);
 

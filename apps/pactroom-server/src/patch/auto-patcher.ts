@@ -1,22 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { executeChildProcess } from '../runners/process-runner.js';
 import { sqlite } from '../db/database.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Root repository resolution
-const rootDir = path.resolve(__dirname, '../../../../');
-const backendWorkspace = process.env.BACKEND_WORKSPACE || 'workspaces/backend-api';
-const frontendWorkspace = process.env.FRONTEND_WORKSPACE || 'workspaces/frontend-consumer';
-const backendWorkspaceDir = path.isAbsolute(backendWorkspace)
-  ? backendWorkspace
-  : path.resolve(rootDir, backendWorkspace);
-const frontendWorkspaceDir = path.isAbsolute(frontendWorkspace)
-  ? frontendWorkspace
-  : path.resolve(rootDir, frontendWorkspace);
+import { getDiscoveredWorkspaces } from '../workspaces.js';
 
 export interface AutoPatchResult {
   success: boolean;
@@ -31,6 +17,98 @@ export interface AutoPatchResult {
   verificationOutput: string;
   durationMs: number;
 }
+
+// ============================================================================
+// BASELINE: Backend Original Clean Baseline Schema Content
+// ============================================================================
+
+export const BACKEND_BASELINE_ORDERS_SCHEMA = `import { z } from 'zod';
+import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
+
+extendZodWithOpenApi(z);
+
+// ============================================================================
+// V1 Strict E-Commerce & Subscription Billing Schemas
+// ============================================================================
+
+export const CustomerTierEnum = z
+  .enum(['free', 'pro', 'enterprise'])
+  .openapi('CustomerTier');
+
+export const OrderStatusEnum = z
+  .enum(['pending', 'processing', 'settled', 'refunded', 'failed'])
+  .openapi('OrderStatus');
+
+export const LineItemSchema = z
+  .object({
+    item_id: z.string().openapi({ example: 'item_desk_mat_01' }),
+    title: z.string().openapi({ example: 'Merino Wool Desk Mat' }),
+    unit_price_cents: z.number().int().positive().openapi({ example: 4500 }),
+    quantity: z.number().int().positive().openapi({ example: 1 })
+  })
+  .openapi('LineItem');
+
+/**
+ * Baseline Order Response Schema
+ * Strict schema guaranteeing total_amount_cents as integer cents and settled status
+ */
+export const OrderResponseSchema = z
+  .object({
+    id: z.string().openapi({ example: 'ord_2026_9872' }),
+    customer_id: z.string().openapi({ example: 'cust_switch_441' }),
+    customer_tier: CustomerTierEnum.openapi({ example: 'pro' }),
+    currency_code: z.string().openapi({ example: 'USD' }),
+    total_amount_cents: z.number().int().nonnegative().openapi({
+      description: 'Total transaction amount in minor currency units (cents)',
+      example: 8900
+    }),
+    status: OrderStatusEnum.openapi({ example: 'settled' }),
+    line_items: z.array(LineItemSchema).openapi({ description: 'Purchased items' }),
+    created_at: z.string().openapi({ example: '2026-10-31T10:00:00.000Z' }),
+    updated_at: z.string().openapi({ example: '2026-10-31T10:15:00.000Z' })
+  })
+  .openapi('OrderResponse');
+
+export const CheckoutSessionRequestSchema = z
+  .object({
+    customer_id: z.string().openapi({ example: 'cust_switch_441' }),
+    customer_tier: CustomerTierEnum.default('free').openapi({ example: 'pro' }),
+    currency_code: z.string().default('USD').openapi({ example: 'USD' }),
+    line_items: z.array(LineItemSchema).min(1),
+    success_url: z.string().url().optional(),
+    cancel_url: z.string().url().optional()
+  })
+  .openapi('CheckoutSessionRequest');
+
+export const CheckoutSessionResponseSchema = z
+  .object({
+    session_id: z.string().openapi({ example: 'cs_live_981240192' }),
+    checkout_url: z.string().openapi({ example: 'https://checkout.pactroom.dev/pay/cs_live_981240192' }),
+    total_amount_cents: z.number().int().nonnegative().openapi({ example: 8900 }),
+    currency_code: z.string().openapi({ example: 'USD' }),
+    status: z.enum(['open', 'expired', 'completed']).openapi({ example: 'open' }),
+    expires_at: z.string().openapi({ example: '2026-10-31T12:00:00.000Z' })
+  })
+  .openapi('CheckoutSessionResponse');
+
+export const ActiveSubscriptionResponseSchema = z
+  .object({
+    subscription_id: z.string().openapi({ example: 'sub_enterprise_33' }),
+    customer_id: z.string().openapi({ example: 'cust_switch_441' }),
+    tier: CustomerTierEnum.openapi({ example: 'pro' }),
+    currency_code: z.string().openapi({ example: 'USD' }),
+    monthly_price_cents: z.number().int().nonnegative().openapi({ example: 4900 }),
+    status: z.enum(['active', 'trialing', 'past_due', 'canceled']).openapi({ example: 'active' }),
+    current_period_end: z.string().openapi({ example: '2026-11-30T23:59:59.000Z' })
+  })
+  .openapi('ActiveSubscriptionResponse');
+
+export type OrderResponse = z.infer<typeof OrderResponseSchema>;
+export type CheckoutSessionRequest = z.infer<typeof CheckoutSessionRequestSchema>;
+export type CheckoutSessionResponse = z.infer<typeof CheckoutSessionResponseSchema>;
+export type ActiveSubscriptionResponse = z.infer<typeof ActiveSubscriptionResponseSchema>;
+export type LineItem = z.infer<typeof LineItemSchema>;
+`;
 
 // ============================================================================
 // OPTION A: Backend Backward-Compatible Adapter Patch Content
@@ -414,6 +492,7 @@ export async function executeAutoPatch(
   approvedByBackend: string = 'backend-dev-alex',
   approvedByFrontend: string = 'frontend-dev-sam'
 ): Promise<AutoPatchResult> {
+  const { backend: backendWorkspace, frontend: frontendWorkspace, backendDir: backendWorkspaceDir, frontendDir: frontendWorkspaceDir } = getDiscoveredWorkspaces();
   const startTime = Date.now();
   const decisionId = `dec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
