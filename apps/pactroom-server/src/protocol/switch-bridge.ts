@@ -467,8 +467,10 @@ export class SwitchBridge {
         negotiationId
       );
 
-      // Generate suggested patches
+      // Generate suggested patches dynamically
       const patches = generateMigrationPatches(diffResult.changes, {
+        frontendWorkspace,
+        backendWorkspace,
         frontendZodFilePath: path.join(frontendWorkspace, 'src/schemas/orders.ts'),
         backendRouterFilePath: path.join(backendWorkspace, 'src/routes/v1.ts')
       });
@@ -725,7 +727,7 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
    * Synthesizes concrete resolution plan (Option A vs Option B) and stops at Human Gate.
    */
   async runSyncAgent(): Promise<void> {
-    const { backend: backendWorkspace, frontend: frontendWorkspace } = getDiscoveredWorkspaces();
+    const { backend: backendWorkspace, frontend: frontendWorkspace, backendDir: backendWorkspaceDir } = getDiscoveredWorkspaces();
     const negotiationId = this.activeNegotiation?.id || 'neg_default';
     const now = new Date().toISOString();
 
@@ -739,26 +741,87 @@ Passing telemetry to **@${this.teamSlug}-sync** for negotiation and resolution p
       sseManager.broadcast('negotiation_update', this.activeNegotiation);
     }
 
+    // Dynamically detect target backend schema file
+    let backendSchemaRel = 'src/schemas/orders.ts';
+    try {
+      const schemasDir = path.resolve(backendWorkspaceDir, 'src/schemas');
+      if (fs.existsSync(schemasDir)) {
+        const files = fs.readdirSync(schemasDir).filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'));
+        if (files.length > 0 && (!files.includes('orders.ts') || files[0] !== 'orders.ts')) {
+          backendSchemaRel = `src/schemas/${files.find(f => f === 'orders.ts') || files[0]}`;
+        }
+      }
+    } catch (e) {}
+    const backendTarget = path.join(backendWorkspace, backendSchemaRel);
+
+    // Dynamically query actual broken files on frontend from verification run
+    let frontendTargetStr = '';
+    try {
+      const rows = sqlite.prepare('SELECT DISTINCT file_path FROM consumer_breakages WHERE negotiation_id = ?').all(negotiationId) as { file_path: string }[];
+      const files = rows.map((r) => r.file_path).filter(Boolean);
+      if (files.length > 0) {
+        frontendTargetStr = files.map((f) => `\`${path.join(frontendWorkspace, f)}\``).join(' & ');
+      }
+    } catch (e) {}
+    if (!frontendTargetStr) {
+      frontendTargetStr = `\`${path.join(frontendWorkspace, 'src/schemas/orders.ts')}\` & \`${path.join(frontendWorkspace, 'src/components/CheckoutSummary.tsx')}\``;
+    }
+
+    // Dynamically generate strategy and impact descriptions from actual detected changes
+    const changes = this.activeNegotiation?.diffResult?.changes || [];
+    const removedFields = changes
+      .filter((c) => c.category === 'PROPERTY_REMOVED')
+      .map((c) => c.fieldPath.split('.').pop() || c.fieldPath);
+    const addedRequired = changes
+      .filter((c) => c.category === 'REQUIRED_PARAM_ADDED')
+      .map((c) => c.fieldPath.split('.').pop() || c.fieldPath);
+    const typeChanges = changes
+      .filter((c) => c.category === 'TYPE_CHANGED' || c.category === 'TYPE_NARROWED')
+      .map((c) => c.fieldPath.split('.').pop() || c.fieldPath);
+    const enumChanges = changes
+      .filter((c) => c.category === 'ENUM_VALUE_REMOVED' || c.category === 'ENUM_VALUE_ADDED')
+      .map((c) => c.fieldPath.split('.').pop() || c.fieldPath);
+
+    let optAStrategy = '';
+    let optBStrategy = '';
+
+    if (removedFields.length > 0) {
+      const fieldList = removedFields.map((f) => `\`${f}\``).join(', ');
+      optAStrategy = `Backend dual-writes both new payload fields and legacy ${fieldList} in response; retains backward-compatible getters${enumChanges.length > 0 ? ' and expands status enums' : ''}.`;
+      optBStrategy = `Frontend consumer synchronizes to v2 specification, reading new payload fields with fallback for legacy ${fieldList}.`;
+    } else if (addedRequired.length > 0) {
+      const fieldList = addedRequired.map((f) => `\`${f}\``).join(', ');
+      optAStrategy = `Backend marks ${fieldList} as optional with default fallback value.`;
+      optBStrategy = `Frontend supplies required parameter ${fieldList} in API client mutation calls.`;
+    } else if (typeChanges.length > 0) {
+      const fieldList = typeChanges.map((f) => `\`${f}\``).join(', ');
+      optAStrategy = `Backend supports both legacy and new types for ${fieldList} using union serialization.`;
+      optBStrategy = `Frontend updates Zod validator to coerce and handle new type for ${fieldList}.`;
+    } else {
+      optAStrategy = `Backend applies backward-compatible adapter alias to preserve existing contract guarantees.`;
+      optBStrategy = `Frontend synchronizes types and components to match the latest upstream contract specification.`;
+    }
+
     const proposal = `
 ⚖️ **Contract Resolution Plan & Human Approval Gate** (\`auto_approve: false\`):
 
 I have synthesized two concrete non-breaking resolution strategies:
 
 ### **Option A: Backend Backward-Compatible Adapter (Recommended)**
-- **Target**: \`${path.join(backendWorkspace, 'src/schemas/orders.ts')}\`
-- **Strategy**: Backend dual-writes both \`pricing_breakdown\` and legacy \`total_amount_cents\` in response payload; expands \`status\` enum to accept both \`settled\` and \`completed\`.
+- **Target**: \`${backendTarget}\`
+- **Strategy**: ${optAStrategy}
 - **Impact**: Zero code changes required on Machine B; frontend continues to compile immediately.
 
 ### **Option B: Synchronized Frontend Consumer Patch**
-- **Target**: \`${path.join(frontendWorkspace, 'src/schemas/orders.ts')}\` & \`CheckoutSummary.tsx\`
-- **Strategy**: Frontend synchronizes to the v2 specification, reading \`pricing_breakdown.amount_minor\` with fallback.
+- **Target**: ${frontendTargetStr}
+- **Strategy**: ${optBStrategy}
 - **Impact**: Codebase moves to modern schema structure; both machines commit synchronized changes.
 
 🛑 **HUMAN APPROVAL REQUIRED**:
 Under Switch Room Protocol rules, I am paused at the approval gate. Type **"Approve Option A"** or **"Approve Option B"** in chat (or click the approval button in the studio) to execute the auto-patch.
     `.trim();
 
-    console.log(`[pactroom-sync] Synthesizing non-breaking resolution plans (Option A vs Option B)...`);
+    console.log(`[pactroom-sync] Synthesizing dynamic non-breaking resolution plans (Option A vs Option B)...`);
     console.log(`[pactroom-sync] 🛑 Paused at Human Approval Gate (auto_approve: false).`);
     console.log(`[pactroom-sync] ⏳ Awaiting mutual approval in Mattermost: Type "Approve Option A" or "Approve Option B" in #pactroom-api-contracts.`);
 

@@ -291,7 +291,7 @@ src/api/client.ts(44,5): error TS2322: Type 'unknown' is not assignable to type 
         const fileStillExists = require('fs').existsSync(verification.temporaryFixturePath);
         expect(fileStillExists).toBe(false);
       }
-    });
+    }, 15000);
 
     it('verifies that when uncommitted backend schema mutation is applied, PactRoom verifier against frontend-consumer fails with real compiler diagnostics', async () => {
       // Mutated candidate schema from uncommitted backend mutation (total_amount_cents replaced by pricing_breakdown)

@@ -66,7 +66,7 @@ export interface ProposedPatch {
   breakingChangeId: string;
   title: string;
   description: string;
-  targetWorkspace: 'frontend-consumer' | 'backend-api';
+  targetWorkspace: string;
   filePath: string;
   patchType: 'REPLACE_FIELD' | 'ADD_FALLBACK' | 'UPDATE_SCHEMA' | 'ADD_ADAPTER';
   originalSnippet: string;
