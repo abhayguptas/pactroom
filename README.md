@@ -501,7 +501,7 @@ Local endpoints:
 PactRoom was developed using Wispr Flow for voice-driven prompt and instruction input, qualifying for the Built with Wispr Flow side track ($500).
 
 <div align="center">
-  <img src="docs/assets/wispr-scorecard.png" alt="Wispr Flow Telemetry Scorecard" width="700" />
+  <img src="docs/assets/wispr-scorecard-v2.png" alt="Wispr Flow Telemetry Scorecard" width="700" />
 </div>
 
 <br />
